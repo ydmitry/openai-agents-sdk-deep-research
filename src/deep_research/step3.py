@@ -141,10 +141,10 @@ OutlineAgent = Agent(
     instructions="""
     You are *OutlineSmith*, an expert in organising complex research.
 
-    • Input: a list of document-level summaries, each with inline <SOURCE_ID> tags.  
+    • Input: a list of document-level summaries, each with inline <SOURCE_ID> tags.
     • Task: draft a logical, sectioned outline (**H2 / H3 headings only**) that
       (a) covers every major theme, (b) groups related findings together, and
-      (c) notes conflict points where sources disagree.  
+      (c) notes conflict points where sources disagree.
     • Reason step-by-step **internally**, then output **only** a JSON array of
       headings in order, e.g.:
 
@@ -207,6 +207,28 @@ CriticAgent = Agent(
     output_type=FactCheck,
 )
 
+RevisionAgent = Agent(
+    name="RevisionAgent",
+    instructions="""
+    You are *Revise-Pro*, an expert editor.
+
+    You will receive input containing:
+    1. The current report markdown (under "CURRENT REPORT:")
+    2. A JSON critique listing unsupported claims, conflicting claims, and an overall assessment (under "CRITIQUE:")
+
+    TASK:
+    1. Remove or rewrite every unsupported claim.
+    2. Where claims conflict, either
+       • reconcile them with nuance **and cite ALL differing sources**, or
+       • clearly state the disagreement with citations.
+    3. Improve logical flow only where needed by the fixes.
+    4. Preserve all valid citations and reference numbers.
+    5. Return **only** the *revised* markdown (no commentary, no JSON).
+    """,
+    model="gpt-4.1",  # or self.report_model if you wish
+    output_type=str,
+)
+
 # -----------------------------
 # Pipeline implementation
 # -----------------------------
@@ -251,7 +273,7 @@ class ResearchSummarizer:
 
     def _configure_agents(self):
         """Configure the agents with the specified models."""
-        global BulletExtractor, DocSummarizer, OutlineAgent, ReportComposer, CriticAgent
+        global BulletExtractor, DocSummarizer, OutlineAgent, ReportComposer, CriticAgent, RevisionAgent
 
         BulletExtractor = Agent(
             name="BulletExtractor",
@@ -296,6 +318,13 @@ class ResearchSummarizer:
             instructions=CriticAgent.instructions,
             model=self.critic_model,
             output_type=FactCheck,
+        )
+
+        RevisionAgent = Agent(
+            name="RevisionAgent",
+            instructions=RevisionAgent.instructions,
+            model=self.report_model,
+            output_type=str,
         )
 
     def _chunk_text(self, text: str) -> List[str]:
@@ -494,24 +523,24 @@ Research Objective: {objective}
 
         # Enhance report with better structure
         body_md = report.body_md
-        
+
         # Add executive summary if not present
         if "# Executive Summary" not in body_md:
             summary_section = "\n\n# Executive Summary\n\n*Key findings at a glance:*\n\n"
             body_md = summary_section + body_md
-        
+
         # Add methodology section if not present
         if "# Methodology" not in body_md and "# Methodological Considerations" not in body_md:
             method_section = "\n\n# Methodological Considerations\n\n"
             method_section += "This report synthesizes information from multiple sources with varying methodologies and perspectives. "
             method_section += "Readers should consider these limitations when interpreting findings.\n\n"
             body_md = body_md.replace("# References", method_section + "# References")
-        
+
         # Ensure code snippets are formatted properly when present
         body_md = re.sub(r'```([^`\n]*)\n', r'```\1\n', body_md)
-        
+
         report.body_md = body_md
-        
+
         return report
 
     async def _critique_report(self, report: Report, summaries: List[DocSummary]) -> FactCheck:
@@ -584,11 +613,46 @@ Research Objective: {objective}
         print("Composing final research report...")
         report = await self._compose_report(summaries, objective)
 
-        # Step 4: Run critique (optional)
+        # Step 4: Fact-check and optional revision loop
         fact_check = None
+        MAX_REVISIONS = 1      # avoid infinite loops
+
         if self.run_critique:
             print("Running fact-check critique...")
             fact_check = await self._critique_report(report, summaries)
+
+            needs_revision = (
+                fact_check.unsupported_claims or
+                fact_check.conflicting_claims
+            )
+
+            if needs_revision and MAX_REVISIONS > 0:
+                print("Critique found issues – revising report...")
+                revision_input = json.dumps(fact_check.dict(), indent=2)
+                run_config = RunConfig(
+                    model=self.report_model,
+                    tracing_disabled=True,
+                    workflow_name="Report Revision"
+                )
+
+                revised_md = await Runner.run(
+                    RevisionAgent,
+                    f"""
+CURRENT REPORT:
+{report.body_md}
+
+CRITIQUE:
+{revision_input}
+                    """,
+                    run_config=run_config
+                )
+
+                # update the report body with the revised markdown
+                report.body_md = revised_md.final_output
+                MAX_REVISIONS -= 1
+
+                # OPTIONAL: re-run critic to verify the fix
+                # fact_check = await self._critique_report(report, summaries)
 
         return report, fact_check
 
@@ -599,7 +663,7 @@ Research Objective: {objective}
 async def async_generate_report(
     documents: List[Document],
     objective: str,
-    bullet_model: str = "gpt-3.5-turbo-0125",
+    bullet_model: str = "gpt-4.1",
     summary_model: str = "gpt-4.1",
     report_model: str = "gpt-4.1",
     critic_model: str = "gpt-4.1",
@@ -638,7 +702,7 @@ async def async_generate_report(
 def generate_report(
     documents: List[Document],
     objective: str,
-    bullet_model: str = "gpt-3.5-turbo-0125",
+    bullet_model: str = "gpt-4.1",
     summary_model: str = "gpt-4.1",
     report_model: str = "gpt-4.1",
     critic_model: str = "gpt-4.1",
@@ -709,7 +773,7 @@ if __name__ == "__main__":
     parser.add_argument("corpus_jsonl", help="Path to corpus JSONL produced by Step 2")
     parser.add_argument("--objective", required=True, help="Research objective")
     parser.add_argument("--out", default="report.md", help="Output Markdown report file (default: report.md)")
-    parser.add_argument("--bullet-model", default="gpt-3.5-turbo-0125", help="Model for bullet extraction")
+    parser.add_argument("--bullet-model", default="gpt-4.1", help="Model for bullet extraction")
     parser.add_argument("--summary-model", default="gpt-4.1", help="Model for document summarization")
     parser.add_argument("--report-model", default="gpt-4.1", help="Model for report composition")
     parser.add_argument("--critic-model", default="gpt-4.1", help="Model for fact checking")

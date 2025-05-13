@@ -134,7 +134,7 @@ async def _async_generate_plan(objective: str, model: str = "o4-mini", **kwargs)
     2. Include specific data source suggestions where appropriate
     3. Identify potential knowledge gaps to investigate
     """
-    
+
     # Create a custom agent with enhanced instructions
     enhanced_planner = Agent(
         name="Planner",

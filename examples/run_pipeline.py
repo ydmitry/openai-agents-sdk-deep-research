@@ -24,6 +24,9 @@ from deep_research.step1 import generate_research_plan
 from deep_research.step2 import build_corpus
 from deep_research.step3 import generate_report
 from deep_research.utils import load_dotenv_files
+from lmnr import Laminar
+from langfuse import Langfuse
+
 
 
 async def run_pipeline_async(topic, out_dir, models=None, concurrency=4):
@@ -145,6 +148,13 @@ def run_pipeline(topic, out_dir, models=None, concurrency=4):
 if __name__ == "__main__":
     # Load environment variables
     load_dotenv_files()
+    Laminar.initialize(project_api_key=os.getenv("LAMINAR_API_KEY"))
+
+    langfuse = Langfuse(
+        secret_key="sk-lf-b76d396c-dce8-4c7a-a3fe-b12f9ca5c772",
+        public_key="pk-lf-5ffb6358-2b77-4035-ab15-95121b313586",
+        host="https://cloud.langfuse.com"
+    )
 
     parser = argparse.ArgumentParser(description="Run the complete deep research pipeline.")
     parser.add_argument("topic", help="Research topic or question")

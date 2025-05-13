@@ -1,54 +1,54 @@
 {
-  "objective": "how to make deep research feature for code bases",
+  "objective": "Develop a deep-research feature for codebases that, given a file, can search its usages, imports, dependencies, and related references across the project",
   "sub_tasks": [
     {
       "id": 1,
-      "task": "Collect developer user requirements and detailed use cases for a deep research feature by conducting interviews or surveys on platforms like StackOverflow, GitHub Discussions, and relevant Slack/Discord communities",
+      "task": "Define detailed functional requirements and user stories (e.g., file lookup, import chain tracing, call graph visualization)",
       "priority": 1
     },
     {
       "id": 2,
-      "task": "Survey existing code research and analysis tools (e.g., Sourcegraph, OpenGrok, GitHub Code Search) and review academic papers on code search and comprehension",
+      "task": "Survey existing tools and libraries (e.g., Language Server Protocol implementations, ctags, Sourcegraph, OpenGrok) and identify reusable components",
       "priority": 2
     },
     {
       "id": 3,
-      "task": "Define core functionalities and success metrics, such as semantic search, dependency graph exploration, automated code summarization, and code quality analysis, referencing industry best practices",
+      "task": "Select and integrate AST parsing technology (e.g., tree-sitter for multi-language support, Babel for JavaScript, Roslyn for .NET) to extract syntax trees and symbol tables",
       "priority": 3
     },
     {
       "id": 4,
-      "task": "Research code representation and parsing techniques\u2014ASTs, CFGs, program dependency graphs\u2014and evaluate code embedding models (e.g., CodeBERT, GraphCodeBERT, StarCoder) for semantic analysis",
+      "task": "Design and build an indexing architecture using a search engine (e.g., Elasticsearch, Apache Lucene) to store symbols, import graphs, and full-text code",
       "priority": 4
     },
     {
       "id": 5,
-      "task": "Design system architecture including indexing pipeline, metadata storage (e.g., graph databases), retrieval API, and model serving infrastructure",
+      "task": "Implement cross-file dependency and reference analysis (e.g., build import graphs, call graphs, inheritance hierarchies) and store edges in a graph database (e.g., Neo4j)",
       "priority": 5
     },
     {
       "id": 6,
-      "task": "Investigate machine learning and NLP models for semantic code search and summarization using datasets like CodeSearchNet and public GitHub corpora",
+      "task": "Prototype a UI/UX for navigating code relationships (e.g., interactive graph viewer, jump-to-definition, usage lists)",
       "priority": 6
     },
     {
       "id": 7,
-      "task": "Plan data sourcing and preprocessing from public repositories (GitHub, GitLab), addressing licensing, repository filtering, tokenization, and updating strategies",
+      "task": "Research and handle dynamic language features (e.g., dynamic imports in Python/JavaScript, reflection in Java/.NET) to identify knowledge gaps",
       "priority": 7
     },
     {
       "id": 8,
-      "task": "Design UI/UX prototypes and integration points (IDE plugins for VSCode/IntelliJ, web dashboard) using tools like Figma or Sketch",
+      "task": "Plan performance, scalability, and incremental indexing strategies for large codebases (e.g., sharding, delta updates)",
       "priority": 8
     },
     {
       "id": 9,
-      "task": "Establish an evaluation framework with quantitative metrics (precision/recall, latency, coverage) and qualitative measures (developer satisfaction, usability testing)",
+      "task": "Design testing and benchmarking framework using open-source repositories (e.g., Linux kernel, React, Spring) to validate accuracy and speed",
       "priority": 9
     },
     {
       "id": 10,
-      "task": "Identify potential knowledge gaps and challenges, including multi-language support, handling large-scale codebases, real-time index updates, and security/privacy concerns",
+      "task": "Define integration points with version control systems and CI pipelines (e.g., Git hooks, GitLab/GitHub Actions) for automated re-indexing",
       "priority": 10
     }
   ]
