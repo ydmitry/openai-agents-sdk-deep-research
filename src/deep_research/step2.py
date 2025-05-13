@@ -336,13 +336,27 @@ def build_corpus(
     Returns:
         List of Document objects forming the research corpus.
     """
-    return asyncio.run(async_build_corpus(
-        plan=plan,
-        search_client=search_client,
-        scraper=scraper,
-        model=model,
-        concurrency=concurrency
-    ))
+    # Check if we're already in an event loop
+    try:
+        loop = asyncio.get_running_loop()
+        if loop.is_running():
+            # We are already in an event loop, so just create and return the coroutine
+            return async_build_corpus(
+                plan=plan,
+                search_client=search_client,
+                scraper=scraper,
+                model=model,
+                concurrency=concurrency
+            )
+    except RuntimeError:
+        # No event loop running, so use asyncio.run to create one
+        return asyncio.run(async_build_corpus(
+            plan=plan,
+            search_client=search_client,
+            scraper=scraper,
+            model=model,
+            concurrency=concurrency
+        ))
 
 # -----------------------------
 # CLI entry point

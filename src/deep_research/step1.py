@@ -177,7 +177,15 @@ def generate_research_plan(objective: str, **kwargs) -> ResearchPlan:
     Returns:
         ResearchPlan dataclass comprising the objective and prioritized sub‑tasks.
     """
-    return asyncio.run(_async_generate_plan(objective, **kwargs))
+    # When called from an event loop, we need to just await the coroutine
+    try:
+        loop = asyncio.get_running_loop()
+        if loop.is_running():
+            # We are already in an event loop, so just create and return the coroutine
+            return _async_generate_plan(objective, **kwargs)
+    except RuntimeError:
+        # No event loop running, so use asyncio.run to create one
+        return asyncio.run(_async_generate_plan(objective, **kwargs))
 
 # -----------------------------
 # CLI entry point
