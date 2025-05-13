@@ -47,6 +47,10 @@ class DocSummary(BaseModel):
     url: str = Field(..., description="URL of the document")
     summary: str = Field(..., description="≤200 words summary with inline [n] citations")
 
+class ReportOutline(BaseModel):
+    """Hierarchical outline derived from all doc-summaries."""
+    heading_tree: List[str] = Field(..., description="Markdown H2/H3 headings in desired order")
+
 class Report(BaseModel):
     """Structured representation of the final research report."""
     title: str = Field(..., description="Title of the research report")
@@ -130,6 +134,28 @@ DocSummarizer = Agent(
     """,
     model="gpt-4.1",
     output_type=DocSummary,
+)
+
+OutlineAgent = Agent(
+    name="OutlineAgent",
+    instructions="""
+    You are *OutlineSmith*, an expert in organising complex research.
+
+    • Input: a list of document-level summaries, each with inline <SOURCE_ID> tags.  
+    • Task: draft a logical, sectioned outline (**H2 / H3 headings only**) that
+      (a) covers every major theme, (b) groups related findings together, and
+      (c) notes conflict points where sources disagree.  
+    • Reason step-by-step **internally**, then output **only** a JSON array of
+      headings in order, e.g.:
+
+        ["Executive Summary", "Background", "Theme 1 – AI in Radiology",
+         "Theme 2 – AI in Pathology", "Conflicting Evidence", "Conclusion"]
+
+    Do not write any prose yet; just the outline.
+    """,
+    model="gpt-4.1",
+    output_type=ReportOutline,
+    model_settings=get_model_settings("gpt-4.1", parallel_tool_calls=False)
 )
 
 # Agent-as-tool lets the reducer call the summarizers in parallel
@@ -225,7 +251,7 @@ class ResearchSummarizer:
 
     def _configure_agents(self):
         """Configure the agents with the specified models."""
-        global BulletExtractor, DocSummarizer, ReportComposer, CriticAgent
+        global BulletExtractor, DocSummarizer, OutlineAgent, ReportComposer, CriticAgent
 
         BulletExtractor = Agent(
             name="BulletExtractor",
@@ -240,6 +266,14 @@ class ResearchSummarizer:
             instructions=DocSummarizer.instructions,
             model=self.summary_model,
             output_type=DocSummary,
+        )
+
+        OutlineAgent = Agent(
+            name="OutlineAgent",
+            instructions=OutlineAgent.instructions,
+            model=self.report_model,
+            output_type=ReportOutline,
+            model_settings=get_model_settings(model_name=self.report_model, parallel_tool_calls=False)
         )
 
         # Update the tool with the new DocSummarizer
@@ -416,14 +450,27 @@ class ResearchSummarizer:
             )
             processed_summaries.append(processed_summary)
 
-        # Create the input for the report composer
+        # 2. generate an outline BEFORE prose
+        outline_run = await Runner.run(
+            OutlineAgent,
+            "\n".join([s.summary for s in processed_summaries]),
+            run_config=RunConfig(model=self.report_model, tracing_disabled=True,
+                             workflow_name="Report Outline")
+        )
+        outline = outline_run.final_output.heading_tree
+
+        # 3. pass outline + summaries to the composer
+        outline_md = "\n".join([f"## {h}" for h in outline])
         input_text = f"""
-        Research Objective: {objective}
+Research Objective: {objective}
 
-        Document Summaries:
+# APPROVED OUTLINE
+{outline_md}
 
-        {chr(10).join([f"--- DOCUMENT {i+1}: {s.title} ---{chr(10)}{s.summary}{chr(10)}" for i, s in enumerate(processed_summaries)])}
-        """
+# DOCUMENT SUMMARIES
+{chr(10).join([f"--- DOC {i+1}: {s.title} ---{chr(10)}{s.summary}{chr(10)}"
+               for i, s in enumerate(processed_summaries)])}
+"""
 
         run_config = RunConfig(
             model=self.report_model,
