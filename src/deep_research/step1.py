@@ -47,7 +47,7 @@ from typing import List, Optional
 
 from agents import Agent, Runner, RunConfig, ModelSettings
 
-from deep_research.utils import load_dotenv_files
+from deep_research.utils import load_dotenv_files, get_model_settings
 
 # -----------------------------
 # Data classes
@@ -112,20 +112,21 @@ planner_agent = Agent(
 # Public API
 # -----------------------------
 
-async def _async_generate_plan(objective: str, model: str = "gpt-4o", **kwargs) -> ResearchPlan:
+async def _async_generate_plan(objective: str, model: str = "o4-mini", **kwargs) -> ResearchPlan:
     """Async helper that runs the agent and returns a structured ResearchPlan."""
     run_id = uuid.uuid4().hex[:6]
-    
+
     # Extract model settings from kwargs
     temperature = kwargs.pop('temperature', 0.7)
     max_tokens = kwargs.pop('max_tokens', None)
-    
-    # Create model settings
-    model_settings = ModelSettings(
+
+    # Create model settings with conditional reasoning effort
+    model_settings = get_model_settings(
+        model_name=model,
         temperature=temperature,
         max_tokens=max_tokens
     )
-    
+
     # Create run configuration with proper trace_id format
     run_config = RunConfig(
         model=model,
@@ -134,7 +135,7 @@ async def _async_generate_plan(objective: str, model: str = "gpt-4o", **kwargs) 
         tracing_disabled=True,
         workflow_name="Research Plan Generator"
     )
-    
+
     # Run the agent
     result = await Runner.run(
         planner_agent,
@@ -142,11 +143,11 @@ async def _async_generate_plan(objective: str, model: str = "gpt-4o", **kwargs) 
         run_config=run_config,
         **kwargs,
     )
-    
+
     # Get the response from the result
     # In version 0.0.14, access the final_output directly
     final_message = result.final_output
-    
+
     # Parse JSON from the message content
     try:
         # Try to extract JSON from the message content
@@ -162,7 +163,7 @@ async def _async_generate_plan(objective: str, model: str = "gpt-4o", **kwargs) 
     except json.JSONDecodeError:
         # In case of failure, return a descriptive error
         raise ValueError(f"Failed to parse JSON from agent response: {final_message}")
-        
+
     sub_tasks = [SubTask(**st) for st in parsed["sub_tasks"]]
     return ResearchPlan(objective=parsed["objective"], sub_tasks=sub_tasks)
 
@@ -193,23 +194,23 @@ def generate_research_plan(objective: str, **kwargs) -> ResearchPlan:
 
 if __name__ == "__main__":
     import argparse
-    
+
     # Load environment variables from .env files
     loaded_files = load_dotenv_files()
-    
+
     # Check for OpenAI API key
     if not os.environ.get("OPENAI_API_KEY"):
         print("Warning: OPENAI_API_KEY environment variable is not set.")
         print("Please set it in a .env file or export it directly.")
         print("Example content for .env file: OPENAI_API_KEY=sk-your-api-key")
         exit(1)
-    
+
     parser = argparse.ArgumentParser(description="Generate an AutoGPT-style research plan (Step 1: Reasoning layer)")
     parser.add_argument("objective", help="High-level research objective, in quotes")
-    parser.add_argument("--model", default="gpt-4o", help="OpenAI model name (default: gpt-4o)")
+    parser.add_argument("--model", default="o4-mini", help="OpenAI model name (default: o4-mini)")
     parser.add_argument("--temperature", type=float, default=0.7, help="Temperature for model generation (default: 0.7)")
     args = parser.parse_args()
 
     plan = generate_research_plan(args.objective, model=args.model, temperature=args.temperature)
     print("\n===== RESEARCH PLAN =====\n")
-    print(plan.to_json()) 
+    print(plan.to_json())

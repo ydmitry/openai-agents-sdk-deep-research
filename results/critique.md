@@ -1,11 +1,11 @@
-# Fact Check: Re-creating a ChatGPT-like Deep Research Tool: A Comprehensive Guide
+# Fact Check: Re-Creating a ChatGPT Deep Research Tool: A Comprehensive Guide
 
 ## Overall Assessment
 
-The report provides general, reasonable best practices for building a ChatGPT-like research tool, but every substantive claim is unsupported as there are no source document summaries provided for verification. The report lacks proper source references and offers assertions without substantiation. Without sources, the factual accuracy of architecture, process, and ethical recommendations cannot be confirmed.
+Most of the claims in the report are well-supported by the provided sources, particularly with regard to the Transformer architecture, large-scale pretraining, RLHF/fine-tuning, data requirements, infrastructure, and Retrieval-Augmented Generation (RAG). Some sections—especially those about custom prompt engineering and privacy/security best practices—are not substantiated by the cited technical sources. However, these likely reflect general best practices extrapolated for the intended audience. The report presents a factually accurate synthesis overall, with minor overextensions.
 
 ## Unsupported Claims
 
-- All technical recommendations (e.g., on transformer architectures, retrieval-augmented generation, critique/bias modules, UX design, privacy/security measures) are presented without direct source support or citation.
-- The statement that 'ChatGPT is renowned for its deep research ability' is unsupported within the report or supplied summaries.
+- Customizing prompt engineering for research workflows: None of the listed sources specifically discuss custom prompt engineering for research workflows; this appears to be an extrapolation.
+- Ensuring privacy and security in handling sensitive data: No explicit technical detail or support for this claim found in the cited sources.
 

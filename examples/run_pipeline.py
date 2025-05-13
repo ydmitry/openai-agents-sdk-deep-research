@@ -9,6 +9,9 @@ This script demonstrates running the complete three-step deep research pipeline:
 
 Usage:
     python examples/run_pipeline.py "Your research topic" --out-dir results
+
+Models:
+    Supports standard models like gpt-4.1 and also o4-mini with high reasoning effort.
 """
 
 import os
@@ -35,7 +38,7 @@ async def run_pipeline_async(topic, out_dir, models=None, concurrency=4):
     """
     if models is None:
         models = {
-            "planner": "gpt-4.1",
+            "planner": "o4-mini",
             "searcher": "gpt-4.1",
             "bullet": "gpt-4.1",
             "summary": "gpt-4.1",
@@ -52,6 +55,7 @@ async def run_pipeline_async(topic, out_dir, models=None, concurrency=4):
 
     # Step 1: Generate research plan
     print(f"Step 1: Generating research plan for topic: {topic}")
+    print(f"Using model: {models['planner']}")
     plan = await generate_research_plan(
         topic,
         model=models["planner"]
@@ -66,6 +70,7 @@ async def run_pipeline_async(topic, out_dir, models=None, concurrency=4):
 
     # Step 2: Search and scrape documents
     print("\nStep 2: Searching and scraping documents for each sub-task")
+    print(f"Using model: {models['searcher']}")
     documents = await build_corpus(
         plan,
         model=models["searcher"],
@@ -82,6 +87,7 @@ async def run_pipeline_async(topic, out_dir, models=None, concurrency=4):
 
     # Step 3: Generate summary report
     print("\nStep 3: Generating research report")
+    print(f"Using models: bullet={models['bullet']}, summary={models['summary']}, report={models['report']}, critic={models['critic']}")
     report, fact_check = await generate_report(
         documents,
         plan.objective,
@@ -143,12 +149,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the complete deep research pipeline.")
     parser.add_argument("topic", help="Research topic or question")
     parser.add_argument("--out-dir", default="results", help="Output directory for all files")
-    parser.add_argument("--planner-model", default="gpt-4.1", help="Model for research planning")
-    parser.add_argument("--searcher-model", default="gpt-4.1", help="Model for web search")
-    parser.add_argument("--bullet-model", default="gpt-4.1", help="Model for bullet extraction")
-    parser.add_argument("--summary-model", default="gpt-4.1", help="Model for document summarization")
-    parser.add_argument("--report-model", default="gpt-4.1", help="Model for report composition")
-    parser.add_argument("--critic-model", default="gpt-4.1", help="Model for fact checking")
+
+    # Model arguments
+    model_group = parser.add_argument_group("Model Selection")
+    model_group.add_argument("--planner-model", default="o4-mini",
+                           help="Model for research planning (gpt-4.1 or o4-mini)")
+    model_group.add_argument("--searcher-model", default="gpt-4.1",
+                           help="Model for web search (gpt-4.1 or o4-mini)")
+    model_group.add_argument("--bullet-model", default="gpt-4.1",
+                           help="Model for bullet extraction (gpt-4.1, gpt-4.1, or o4-mini)")
+    model_group.add_argument("--summary-model", default="gpt-4.1",
+                           help="Model for document summarization (gpt-4.1 or o4-mini)")
+    model_group.add_argument("--report-model", default="gpt-4.1",
+                           help="Model for report composition (gpt-4.1 or o4-mini)")
+    model_group.add_argument("--critic-model", default="gpt-4.1",
+                           help="Model for fact checking (gpt-4.1 or o4-mini)")
+
     parser.add_argument("--no-critique", action="store_true", help="Skip the critique phase")
     parser.add_argument("--concurrency", type=int, default=4, help="Parallel tasks (default: 4)")
     args = parser.parse_args()

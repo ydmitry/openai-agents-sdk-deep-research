@@ -32,7 +32,7 @@ from tqdm.asyncio import tqdm_asyncio
 
 from agents import Agent, Runner, WebSearchTool, RunConfig, ModelSettings
 from deep_research.step1 import ResearchPlan, SubTask  # Re‑use dataclasses
-from deep_research.utils import load_dotenv_files
+from deep_research.utils import load_dotenv_files, get_model_settings
 
 # -----------------------------
 # Data classes
@@ -45,7 +45,7 @@ class Document:
     url: str
     title: str
     text: str
-    
+
     def to_json(self) -> str:
         """Serialize document to JSON string."""
         return json.dumps(asdict(self), ensure_ascii=False)
@@ -56,15 +56,15 @@ class Document:
 
 class SearchClient(Protocol):
     """Protocol for search clients to allow dependency injection and easier testing."""
-    
+
     async def search(self, query: str, max_results: int = 5) -> List[str]:
         """
         Execute a search and return a list of URLs.
-        
+
         Args:
             query: The search query.
             max_results: Maximum number of results to return.
-            
+
         Returns:
             List of URLs.
         """
@@ -76,11 +76,11 @@ class SearchClient(Protocol):
 
 class AgentSearchClient:
     """Implementation of SearchClient using the OpenAI Agents WebSearchTool."""
-    
-    def __init__(self, model: str = "gpt-4o"):
+
+    def __init__(self, model: str = "gpt-4.1"):
         """
         Initialize the agent search client.
-        
+
         Args:
             model: OpenAI model to use.
         """
@@ -95,50 +95,53 @@ class AgentSearchClient:
             """,
             tools=[WebSearchTool()],
         )
-    
+
     async def search(self, query: str, max_results: int = 5) -> List[str]:
         """
         Execute a search using the WebSearchTool and return a list of URLs.
-        
+
         Args:
             query: The search query.
             max_results: Maximum number of results to return.
-            
+
         Returns:
             List of URLs.
         """
-        # Create run configuration
+        # Create run configuration with conditional reasoning effort
         run_config = RunConfig(
             model=self.model,
-            model_settings=ModelSettings(temperature=0.0),
+            model_settings=get_model_settings(
+                model_name=self.model,
+                temperature=0.0
+            ),
             tracing_disabled=True,
             workflow_name="Web Search"
         )
-        
+
         print(f"Searching for: {query}")
-        
+
         result = await Runner.run(
             self.agent,
             query,
             run_config=run_config,
             max_turns=3,  # Limit to 3 turns to avoid infinite loops
         )
-        
+
         print(f"Search response: {result.final_output}")
-        
+
         # Parse the JSON response
         try:
             # Try to parse the response directly
             urls = json.loads(result.final_output)
-            
+
             # Ensure we have a list of strings
             if not isinstance(urls, list):
                 urls = []
-            
+
             # Filter out non-string elements and take up to max_results
             urls = [url for url in urls if isinstance(url, str)][:max_results]
             print(f"Found {len(urls)} URLs for query: {query}")
-            
+
             return urls
         except (json.JSONDecodeError, TypeError) as e:
             # In case parsing fails, return an empty list
@@ -151,24 +154,24 @@ class AgentSearchClient:
 
 class Scraper:
     """HTML scraper that extracts plaintext content from web pages."""
-    
+
     def __init__(self, timeout: int = 30):
         """
         Initialize the scraper.
-        
+
         Args:
             timeout: HTTP request timeout in seconds.
         """
         self.timeout = aiohttp.ClientTimeout(total=timeout)
-    
+
     async def fetch_html(self, session: aiohttp.ClientSession, url: str) -> str:
         """
         Fetch HTML content from a URL.
-        
+
         Args:
             session: aiohttp ClientSession.
             url: URL to fetch.
-            
+
         Returns:
             HTML content as string or empty string if fetch fails.
         """
@@ -178,14 +181,14 @@ class Scraper:
                 return await resp.text()
         except Exception:
             return ""
-    
+
     def html_to_text(self, html: str) -> str:
         """
         Convert HTML to plaintext.
-        
+
         Args:
             html: HTML content.
-            
+
         Returns:
             Extracted plaintext.
         """
@@ -195,15 +198,15 @@ class Scraper:
             tag.decompose()
         text = soup.get_text(" ", strip=True)
         return " ".join(text.split())
-    
+
     async def scrape_urls(self, task_id: int, urls: Sequence[str]) -> List[Document]:
         """
         Scrape multiple URLs and convert to Document objects.
-        
+
         Args:
             task_id: ID of the source subtask.
             urls: List of URLs to scrape.
-            
+
         Returns:
             List of Document objects.
         """
@@ -228,17 +231,17 @@ class ResearchCorpusBuilder:
     """
     Orchestrates the process of building a research corpus by searching and scraping.
     """
-    
+
     def __init__(
-        self, 
+        self,
         search_client: Optional[SearchClient] = None,
         scraper: Optional[Scraper] = None,
-        model: str = "gpt-4o",
+        model: str = "gpt-4.1",
         concurrency: int = 4
     ):
         """
         Initialize the corpus builder.
-        
+
         Args:
             search_client: Client for web searches. If None, use AgentSearchClient.
             scraper: Web scraper. If None, use default Scraper.
@@ -248,36 +251,36 @@ class ResearchCorpusBuilder:
         self.search_client = search_client or AgentSearchClient(model=model)
         self.scraper = scraper or Scraper()
         self.concurrency = concurrency
-    
+
     async def process_task(self, task: SubTask) -> List[Document]:
         """
         Process a single research subtask: search and scrape.
-        
+
         Args:
             task: SubTask to process.
-            
+
         Returns:
             List of Document objects.
         """
         urls = await self.search_client.search(task.task)
         return await self.scraper.scrape_urls(task.id, urls)
-    
+
     async def build_corpus(self, plan: ResearchPlan) -> List[Document]:
         """
         Execute searches & scraping for every sub‑task in plan concurrently.
-        
+
         Args:
             plan: Research plan with subtasks.
-            
+
         Returns:
             List of Document objects forming the research corpus.
         """
         sem = asyncio.Semaphore(self.concurrency)
-        
+
         async def _worker(st: SubTask):
             async with sem:
                 return await self.process_task(st)
-        
+
         coros = [_worker(st) for st in plan.sub_tasks]
         documents_nested = await tqdm_asyncio.gather(*coros)
         # Flatten the list of lists
@@ -289,22 +292,22 @@ class ResearchCorpusBuilder:
 # -----------------------------
 
 async def async_build_corpus(
-    plan: ResearchPlan, 
+    plan: ResearchPlan,
     search_client: Optional[SearchClient] = None,
     scraper: Optional[Scraper] = None,
-    model: str = "gpt-4o", 
+    model: str = "gpt-4.1",
     concurrency: int = 4
 ) -> List[Document]:
     """
     Async function to build a research corpus from a plan.
-    
+
     Args:
         plan: Research plan with subtasks.
         search_client: Client for web searches. If None, use AgentSearchClient.
         scraper: Web scraper. If None, use default Scraper.
         model: OpenAI model to use if creating a default search client.
         concurrency: Maximum number of concurrent tasks.
-        
+
     Returns:
         List of Document objects forming the research corpus.
     """
@@ -317,22 +320,22 @@ async def async_build_corpus(
     return await builder.build_corpus(plan)
 
 def build_corpus(
-    plan: ResearchPlan, 
+    plan: ResearchPlan,
     search_client: Optional[SearchClient] = None,
     scraper: Optional[Scraper] = None,
-    model: str = "gpt-4o", 
+    model: str = "gpt-4.1",
     concurrency: int = 4
 ) -> List[Document]:
     """
     Blocking function to build a research corpus from a plan.
-    
+
     Args:
         plan: Research plan with subtasks.
         search_client: Client for web searches. If None, use AgentSearchClient.
         scraper: Web scraper. If None, use default Scraper.
         model: OpenAI model to use if creating a default search client.
         concurrency: Maximum number of concurrent tasks.
-        
+
     Returns:
         List of Document objects forming the research corpus.
     """
@@ -366,14 +369,14 @@ if __name__ == "__main__":
     import argparse
     import pathlib
     import sys
-    
+
     # Load environment variables from .env files
     loaded_files = load_dotenv_files()
-    
+
     parser = argparse.ArgumentParser(description="Step 2 – run web searches & scrape pages for each planner sub‑task.")
     parser.add_argument("plan_json", help="Path to plan JSON produced by Step 1")
     parser.add_argument("--out", default="corpus.jsonl", help="Output JSON‑Lines file (default: corpus.jsonl)")
-    parser.add_argument("--model", default="gpt-4o", help="OpenAI model name")
+    parser.add_argument("--model", default="gpt-4.1", help="OpenAI model name")
     parser.add_argument("--concurrency", type=int, default=4, help="Parallel tasks (default: 4)")
     args = parser.parse_args()
 
@@ -383,20 +386,20 @@ if __name__ == "__main__":
 
     with plan_path.open() as f:
         plan_dict = json.load(f)
-        
+
     plan = ResearchPlan(
         objective=plan_dict["objective"],
         sub_tasks=[SubTask(**st) for st in plan_dict["sub_tasks"]],
     )
 
     docs = build_corpus(
-        plan, 
-        model=args.model, 
+        plan,
+        model=args.model,
         concurrency=args.concurrency
     )
-    
+
     with open(args.out, "w", encoding="utf-8") as out_f:
         for d in docs:
             out_f.write(d.to_json() + "\n")
-    
-    print(f"Wrote {len(docs)} docs → {args.out}") 
+
+    print(f"Wrote {len(docs)} docs → {args.out}")

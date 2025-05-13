@@ -1,60 +1,55 @@
 {
-  "objective": "How to re-create a ChatGPT-like deep research tool.",
+  "objective": "how to re-create chat gpt deep research tool",
   "sub_tasks": [
     {
       "id": 1,
-      "task": "Define the core features and workflow of a ChatGPT deep research tool (e.g., multi-step reasoning, retrieval-augmented generation, agent orchestration).",
+      "task": "Define the scope, key features, use cases, and success criteria of the deep research tool",
       "priority": 1
     },
     {
       "id": 2,
-      "task": "Identify the key components and their functions (e.g., planner, researcher, summarizer, retriever, orchestrator).",
+      "task": "Analyze existing ChatGPT research workflows and pipelines to extract architectural patterns and best practices",
       "priority": 2
     },
     {
       "id": 3,
-      "task": "Research the foundational AI models and technologies required (e.g., LLMs, vector databases, prompt engineering techniques).",
+      "task": "Identify and select appropriate large language models, fine-tuning methods, and domain adaptation strategies",
       "priority": 3
     },
     {
       "id": 4,
-      "task": "Analyze open-source libraries and frameworks relevant to building such tools (e.g., LangChain, LlamaIndex, Haystack).",
+      "task": "Design the multi-step orchestration pipeline including planner, researcher, synthesizer, and critic components",
       "priority": 4
     },
     {
       "id": 5,
-      "task": "Outline the system architecture for orchestrating multi-agent or multi-step workflows.",
+      "task": "Develop a retrieval-augmented generation system: document ingestion, vector store, search algorithms, and RAG integration",
       "priority": 5
     },
     {
       "id": 6,
-      "task": "Investigate best practices for integrating external data sources and real-time information retrieval.",
+      "task": "Implement context management and memory mechanisms to support long-form, iterative research dialogs",
       "priority": 6
     },
     {
       "id": 7,
-      "task": "Assess methods for ensuring reliability, accuracy, and factuality in generated research outputs.",
+      "task": "Create citation and source-tracking modules to ensure verifiability and transparency",
       "priority": 7
     },
     {
       "id": 8,
-      "task": "Evaluate user interface and experience considerations for interacting with the tool.",
+      "task": "Design and build a user interface/UX that supports deep research workflows and iterative refinements",
       "priority": 8
     },
     {
       "id": 9,
-      "task": "Identify potential challenges (e.g., hallucination, latency, scalability) and available solutions.",
+      "task": "Establish evaluation metrics and testing protocols to measure accuracy, depth, and efficiency",
       "priority": 9
     },
     {
       "id": 10,
-      "task": "Collect example use cases and benchmarks to measure the tool\u2019s effectiveness.",
+      "task": "Plan deployment, scaling, data privacy, security, and cost management strategies",
       "priority": 10
-    },
-    {
-      "id": 11,
-      "task": "Summarize legal, ethical, and licensing considerations relevant to building and deploying such a tool.",
-      "priority": 11
     }
   ]
 }

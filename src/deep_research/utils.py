@@ -4,6 +4,7 @@ Utility functions for the deep_research package.
 import os
 from pathlib import Path
 from typing import Optional, List
+from agents import ModelSettings
 
 def find_dotenv_files(start_dir: Optional[str] = None, max_levels_up: int = 3) -> List[str]:
     """
@@ -65,4 +66,38 @@ def load_dotenv_files(start_dir: Optional[str] = None, max_levels_up: int = 3) -
             loaded_files.append(dotenv_path)
             print(f"Loaded environment variables from: {dotenv_path}")
     
-    return loaded_files 
+    return loaded_files
+
+def get_model_settings(model_name, temperature=0.7, max_tokens=None, parallel_tool_calls=False):
+    """
+    Returns model settings with appropriate reasoning effort based on model type.
+    For o4-mini, applies high reasoning effort.
+    For other models like gpt-4o, uses default settings.
+    
+    Args:
+        model_name: Name of the model to use
+        temperature: Temperature for model generation (ignored for o4-mini)
+        max_tokens: Maximum tokens to generate
+        parallel_tool_calls: Whether to enable parallel tool calls
+        
+    Returns:
+        ModelSettings object configured appropriately for the model
+    """
+    # Create different settings objects based on model type
+    if model_name == "o4-mini":
+        # o4-mini doesn't support temperature parameter
+        settings = ModelSettings(
+            max_tokens=max_tokens,
+            parallel_tool_calls=parallel_tool_calls
+        )
+        # Apply high reasoning effort
+        settings.reasoning_effort = "high"
+    else:
+        # For other models like gpt-4o, use all parameters
+        settings = ModelSettings(
+            temperature=temperature,
+            max_tokens=max_tokens,
+            parallel_tool_calls=parallel_tool_calls
+        )
+    
+    return settings 
