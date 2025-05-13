@@ -1,4 +1,79 @@
-# Development Notes
+# Development Guide
+
+This document contains information for developers working on the Deep Research Pipeline project.
+
+## Project Structure
+
+```
+deep-research/
+├── examples/              # Example scripts showing how to use the library
+├── src/                   # Source code
+│   └── deep_research/     # Main package
+│       ├── __init__.py    # Package initialization
+│       ├── step1.py       # Planning/Reasoning layer
+│       ├── step2.py       # Web Search & Scraping layer 
+│       └── utils.py       # Shared utilities
+├── tests/                 # Test suite
+│   ├── integration/       # Integration tests
+│   └── unit/              # Unit tests
+├── setup.py               # Package setup file
+└── requirements.txt       # Dependencies for development
+```
+
+## Architecture
+
+### Step 1: Planning Layer
+
+The planning layer takes a high-level research objective and breaks it down into prioritized sub-tasks. It uses the OpenAI Agents SDK to interact with a large language model.
+
+Key components:
+- `ResearchPlan` dataclass - Represents a structured research plan
+- `SubTask` dataclass - Represents an individual research sub-task
+- `generate_research_plan()` - Main API for generating plans
+
+### Step 2: Web Search & Scraping Layer
+
+The web search and scraping layer takes the research plan from Step 1 and performs web searches for each sub-task, followed by content extraction from the search results. It outputs a corpus of documents that can be used for summarization (Step 3).
+
+Key components:
+- `Document` dataclass - Represents a document scraped from the web
+- `SearchClient` protocol - Interface for search clients
+- `AgentSearchClient` - Default implementation using OpenAI Agents WebSearchTool
+- `Scraper` - HTML content extraction using BeautifulSoup
+- `ResearchCorpusBuilder` - Orchestrates the search and scraping process
+- `build_corpus()` - Main API for building a corpus
+
+### Design Patterns
+
+1. **Protocol-based interfaces**: The `SearchClient` protocol allows for dependency injection and easier testing.
+2. **Async/await for concurrency**: The scraping operations run concurrently using asyncio.
+3. **Dependency injection**: Components like `SearchClient` and `Scraper` can be replaced with custom implementations.
+
+## Testing
+
+The project uses pytest for testing:
+
+1. **Unit tests**: Test individual components with mocked dependencies
+2. **Integration tests**: Test multiple components working together
+
+Key testing utilities:
+- `MockSearchClient` - A test implementation of the SearchClient protocol
+- `MockScraper` - A test scraper that returns predefined documents
+
+## Adding New Features
+
+### Adding Step 3 (Summarization Layer)
+
+The next step is to implement a summarization layer that will:
+1. Take the corpus of documents from Step 2
+2. For each sub-task, summarize the relevant documents
+3. Combine summaries into a cohesive report with citations
+
+The implementation should follow similar patterns to Step 2:
+- Define clean interfaces with protocols
+- Use dependency injection for flexibility
+- Write comprehensive tests
+- Support both synchronous and asynchronous usage
 
 ## Current Project Status
 

@@ -1,0 +1,55 @@
+{
+  "objective": "Economic impact of AI on healthcare",
+  "sub_tasks": [
+    {
+      "id": 1,
+      "task": "Analyze how AI reduces healthcare costs through automation and efficiency improvements.",
+      "priority": 1
+    },
+    {
+      "id": 2,
+      "task": "Investigate the impact of AI on healthcare job markets, including job displacement and creation.",
+      "priority": 2
+    },
+    {
+      "id": 3,
+      "task": "Examine AI-driven improvements in patient outcomes and their economic implications.",
+      "priority": 3
+    },
+    {
+      "id": 4,
+      "task": "Assess the investment landscape for AI technologies in healthcare.",
+      "priority": 4
+    },
+    {
+      "id": 5,
+      "task": "Study the regulatory and compliance costs associated with implementing AI in healthcare.",
+      "priority": 5
+    },
+    {
+      "id": 6,
+      "task": "Evaluate the impact of AI on reducing medical errors and its economic benefits.",
+      "priority": 6
+    },
+    {
+      "id": 7,
+      "task": "Research the cost of AI technology adoption and integration into existing healthcare systems.",
+      "priority": 7
+    },
+    {
+      "id": 8,
+      "task": "Analyze case studies of healthcare institutions that have implemented AI to understand economic outcomes.",
+      "priority": 8
+    },
+    {
+      "id": 9,
+      "task": "Explore the role of AI in personalized medicine and its economic impact on healthcare delivery.",
+      "priority": 9
+    },
+    {
+      "id": 10,
+      "task": "Investigate the potential for AI to address healthcare disparities and its economic effects.",
+      "priority": 10
+    }
+  ]
+}
