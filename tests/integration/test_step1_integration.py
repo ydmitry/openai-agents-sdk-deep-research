@@ -22,7 +22,7 @@ def test_generate_research_plan_integration(mock_runner_run):
     This test verifies that the function can process a realistic API response
     and convert it into a proper ResearchPlan object.
     """
-    # 1. Set up the mock response from the API
+    # 1. Set up the mock response data
     json_response = json.dumps({
         "objective": "Assess the economic impact of generative AI on the 2025 EU labor market",
         "sub_tasks": [
@@ -37,21 +37,9 @@ def test_generate_research_plan_integration(mock_runner_run):
         ]
     })
     
-    # Create a mock result object
+    # Create a mock result object with final_output directly
     mock_result = MagicMock()
-    
-    # Create a message with the sample JSON response
-    mock_assistant_message = MagicMock()
-    mock_assistant_message.role = "assistant"
-    mock_assistant_message.content = json_response
-    
-    # Create a user message 
-    mock_user_message = MagicMock()
-    mock_user_message.role = "user"
-    mock_user_message.content = "Assess the economic impact of generative AI on the 2025 EU labor market"
-    
-    # Set up the messages list with both messages
-    mock_result.messages = [mock_user_message, mock_assistant_message]
+    mock_result.final_output = json_response
     
     # Configure the mock
     mock_runner_run.return_value = mock_result
