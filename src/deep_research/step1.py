@@ -127,6 +127,20 @@ async def _async_generate_plan(objective: str, model: str = "o4-mini", **kwargs)
         max_tokens=max_tokens
     )
 
+    # Enhanced planner instructions for better research plans
+    enhanced_instructions = SYSTEM_INSTRUCTIONS + """
+    Additionally, ensure your sub-tasks:
+    1. Cover multiple perspective angles on the topic
+    2. Include specific data source suggestions where appropriate
+    3. Identify potential knowledge gaps to investigate
+    """
+    
+    # Create a custom agent with enhanced instructions
+    enhanced_planner = Agent(
+        name="Planner",
+        instructions=enhanced_instructions,
+    )
+
     # Create run configuration with proper trace_id format
     run_config = RunConfig(
         model=model,
@@ -136,9 +150,9 @@ async def _async_generate_plan(objective: str, model: str = "o4-mini", **kwargs)
         workflow_name="Research Plan Generator"
     )
 
-    # Run the agent
+    # Run the agent with enhanced instructions
     result = await Runner.run(
-        planner_agent,
+        enhanced_planner,
         objective,
         run_config=run_config,
         **kwargs,

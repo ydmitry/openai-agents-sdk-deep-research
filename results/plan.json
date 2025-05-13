@@ -1,54 +1,54 @@
 {
-  "objective": "how to re-create chat gpt deep research tool",
+  "objective": "How to make a deep research feature for code bases",
   "sub_tasks": [
     {
       "id": 1,
-      "task": "Define the scope, key features, use cases, and success criteria of the deep research tool",
+      "task": "Define scope, target users and detailed requirements of a deep research feature (e.g., supported languages, use cases, query types) through stakeholder interviews and surveys",
       "priority": 1
     },
     {
       "id": 2,
-      "task": "Analyze existing ChatGPT research workflows and pipelines to extract architectural patterns and best practices",
+      "task": "Survey and benchmark existing code search and analysis platforms (e.g., Sourcegraph, GitHub Code Search, OpenGrok) for strengths, weaknesses, and feature gaps",
       "priority": 2
     },
     {
       "id": 3,
-      "task": "Identify and select appropriate large language models, fine-tuning methods, and domain adaptation strategies",
+      "task": "Conduct academic literature review on program comprehension, semantic code search and summarization (sources: ArXiv, Google Scholar, IEEE Xplore)",
       "priority": 3
     },
     {
       "id": 4,
-      "task": "Design the multi-step orchestration pipeline including planner, researcher, synthesizer, and critic components",
+      "task": "Investigate technical approaches for semantic code understanding: static/dynamic analysis, ASTs, code embeddings (CodeBERT, code2vec), graph neural networks",
       "priority": 4
     },
     {
       "id": 5,
-      "task": "Develop a retrieval-augmented generation system: document ingestion, vector store, search algorithms, and RAG integration",
+      "task": "Design an indexing pipeline: tokenization, metadata extraction (file paths, version history), embedding generation and storage",
       "priority": 5
     },
     {
       "id": 6,
-      "task": "Implement context management and memory mechanisms to support long-form, iterative research dialogs",
+      "task": "Evaluate vector search and database solutions (e.g., Pinecone, FAISS, ElasticSearch vector plugin) for scalability and retrieval speed",
       "priority": 6
     },
     {
       "id": 7,
-      "task": "Create citation and source-tracking modules to ensure verifiability and transparency",
+      "task": "Draft UI/UX mockups for interactive query input, result filtering, snippet preview and navigation (tools: Figma, Adobe XD)",
       "priority": 7
     },
     {
       "id": 8,
-      "task": "Design and build a user interface/UX that supports deep research workflows and iterative refinements",
+      "task": "Plan IDE/editor integration strategy (e.g., VSCode extension, JetBrains plugin) including APIs and live feedback mechanisms",
       "priority": 8
     },
     {
       "id": 9,
-      "task": "Establish evaluation metrics and testing protocols to measure accuracy, depth, and efficiency",
+      "task": "Define evaluation metrics and benchmarks (precision, recall, latency, user satisfaction) and create a test suite using open-source corpora (GitHub public repos)",
       "priority": 9
     },
     {
       "id": 10,
-      "task": "Plan deployment, scaling, data privacy, security, and cost management strategies",
+      "task": "Identify potential knowledge gaps (polyglot support, context understanding, scalability) and propose research experiments to address them",
       "priority": 10
     }
   ]

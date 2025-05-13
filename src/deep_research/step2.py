@@ -184,20 +184,49 @@ class Scraper:
 
     def html_to_text(self, html: str) -> str:
         """
-        Convert HTML to plaintext.
+        Convert HTML to plaintext with enhanced structure preservation.
 
         Args:
             html: HTML content.
 
         Returns:
-            Extracted plaintext.
+            Extracted plaintext with preserved document structure.
         """
         soup = BeautifulSoup(html, "html.parser")
+        
+        # Extract title with higher priority
+        title = soup.find('title')
+        title_text = title.get_text().strip() if title else ""
+        
+        # Extract meta description for context
+        meta_desc = soup.find('meta', attrs={'name': 'description'})
+        description = meta_desc.get('content', '').strip() if meta_desc else ""
+        
         # Remove script/style and navigation elements
         for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
             tag.decompose()
-        text = soup.get_text(" ", strip=True)
-        return " ".join(text.split())
+        
+        # Process headings and paragraphs to maintain structure
+        headings = [h.get_text().strip() for h in soup.find_all(['h1', 'h2', 'h3']) if len(h.get_text().strip()) > 10]
+        paragraphs = [p.get_text().strip() for p in soup.find_all('p') if len(p.get_text().strip()) > 40]
+        
+        # Combine with structure markers
+        structured_text = title_text
+        if description:
+            structured_text += f"\n\n{description}"
+        
+        if headings:
+            structured_text += f"\n\n" + "\n\n".join(headings)
+        
+        if paragraphs:
+            structured_text += f"\n\n" + "\n\n".join(paragraphs)
+        
+        # If we couldn't extract anything meaningful, fall back to basic extraction
+        if len(structured_text.strip()) < 200:
+            text = soup.get_text(" ", strip=True)
+            return " ".join(text.split())
+            
+        return structured_text
 
     async def scrape_urls(self, task_id: int, urls: Sequence[str]) -> List[Document]:
         """

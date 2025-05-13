@@ -149,8 +149,12 @@ ReportComposer = Agent(
     2. Include a concise introduction and conclusion
     3. Maintain all citation references using [n] format
     4. Organize information logically for maximum clarity
-    5. Use proper Markdown formatting
+    5. Use proper Markdown formatting including **bold** for key concepts
     6. Include a references section at the end
+    7. Add tables to compare different viewpoints or findings
+    8. Use bullet points for listing key insights
+    9. Include a "Methodological Considerations" section discussing limitations
+    10. Add an "Executive Summary" at the beginning
 
     Return a Report object with title, body_md (Markdown content), and references.
     """,
@@ -441,6 +445,26 @@ class ResearchSummarizer:
         ]
         report.references = formatted_refs
 
+        # Enhance report with better structure
+        body_md = report.body_md
+        
+        # Add executive summary if not present
+        if "# Executive Summary" not in body_md:
+            summary_section = "\n\n# Executive Summary\n\n*Key findings at a glance:*\n\n"
+            body_md = summary_section + body_md
+        
+        # Add methodology section if not present
+        if "# Methodology" not in body_md and "# Methodological Considerations" not in body_md:
+            method_section = "\n\n# Methodological Considerations\n\n"
+            method_section += "This report synthesizes information from multiple sources with varying methodologies and perspectives. "
+            method_section += "Readers should consider these limitations when interpreting findings.\n\n"
+            body_md = body_md.replace("# References", method_section + "# References")
+        
+        # Ensure code snippets are formatted properly when present
+        body_md = re.sub(r'```([^`\n]*)\n', r'```\1\n', body_md)
+        
+        report.body_md = body_md
+        
         return report
 
     async def _critique_report(self, report: Report, summaries: List[DocSummary]) -> FactCheck:
