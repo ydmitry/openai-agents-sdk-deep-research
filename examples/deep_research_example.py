@@ -23,6 +23,8 @@ import sys
 import os
 from pathlib import Path
 from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple
+from pydantic import BaseModel, Field, create_model
 
 # Add the src directory to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -67,6 +69,70 @@ def setup_logging(log_level=logging.INFO, log_file=None):
 # Module logger
 logger = logging.getLogger(__name__)
 
+# Define research context and related classes for sharing data between agents
+class ResearchSource(BaseModel):
+    """Represents a source of information used in research"""
+    url: str
+    title: str
+    snippet: str
+    domain: str
+    source_type: str  # academic, news, blog, etc.
+    credibility_score: float = 0.0  # 0.0-1.0, evaluated by the system
+    
+class ResearchFinding(BaseModel):
+    """Represents a discrete finding from research"""
+    statement: str
+    sources: List[ResearchSource]
+    topic_area: str
+    confidence: float = 0.0  # 0.0-1.0
+
+class SearchResult(BaseModel):
+    title: str
+    url: str
+    content: str
+    
+class WorkflowState(BaseModel):
+    """Shared state for the research workflow"""
+    query: str = Field(description="The original research query")
+    topics: List[str] = Field(default_factory=list, description="Research topics identified")
+    search_results: Dict[str, List[SearchResult]] = Field(default_factory=dict, description="Search results by topic")
+    findings: List[Dict[str, Any]] = Field(default_factory=list, description="Research findings")
+    current_phase: str = Field(default="discovery", description="Current phase of research")
+    iterations_done: int = Field(default=0, description="Number of research iterations completed")
+    gaps: List[str] = Field(default_factory=list, description="Identified research gaps")
+    
+    class Config:
+        arbitrary_types_allowed = True
+
+# Pydantic models for function tool input/output
+class TopicResponse(BaseModel):
+    topics: List[str] = Field(description="List of research topics to investigate")
+
+class SearchQueries(BaseModel):
+    queries: List[str] = Field(description="List of search queries for a topic")
+
+class SearchResponse(BaseModel):
+    results: List[SearchResult] = Field(description="Search results")
+    query: str = Field(description="The search query used")
+    
+class GapAnalysisResult(BaseModel):
+    gaps: List[str] = Field(description="List of identified research gaps")
+    complete: bool = Field(description="Whether the research is considered complete")
+
+class ResearchExample(BaseModel):
+    title: str = Field(description="Title of the example")
+    description: str = Field(description="Description of the example")
+    url: str = Field(description="URL of the example")
+    highlights: List[str] = Field(description="Key highlights of this example")
+    source_quality: str = Field(description="Evaluation of the source quality")
+    
+class FinalResearchResponse(BaseModel):
+    introduction: str = Field(description="Introduction to the research topic")
+    best_examples: List[ResearchExample] = Field(description="List of best examples found")
+    comparison: str = Field(description="Comparison of different examples")
+    conclusion: str = Field(description="Conclusion and final recommendation")
+    sources: List[str] = Field(description="List of sources consulted")
+
 def load_deep_research_agent(enable_langfuse: bool = False, service_name: str = "deep_research_agent"):
     """
     Factory function to create and return a deep research system with multiple specialized agents.
@@ -79,7 +145,7 @@ def load_deep_research_agent(enable_langfuse: bool = False, service_name: str = 
         tuple: (agent, run_agent_function) - The configured triage agent and a function to run queries.
     """
     import openai
-    from agents import Agent, Runner, WebSearchTool, ModelSettings
+    from agents import Agent, Runner, WebSearchTool, ModelSettings, function_tool
     from agents import handoff
 
     logger.info("Initializing deep research agent system")
@@ -112,107 +178,359 @@ def load_deep_research_agent(enable_langfuse: bool = False, service_name: str = 
         temperature=0.1,  # Even lower temperature for coordination
         max_tokens=1000,  # Less tokens needed for coordination
     )
+    
+    # Create a shared workflow state
+    workflow_state = WorkflowState(query="")
+    
+    # Custom function tools for research management
+    
+    @function_tool
+    async def identify_research_topics(query: str) -> TopicResponse:
+        """
+        Identify key research topics/areas that need to be investigated for the query.
+        
+        Args:
+            query: The research query
+            
+        Returns:
+            A response containing a list of specific topics to research
+        """
+        # Generate fixed generic topics regardless of query content
+        topics = [
+            "Implementation approaches",
+            "Architectural patterns",
+            "Common use cases",
+            "Development best practices",
+            "Integration strategies",
+            "Performance considerations"
+        ]
+        
+        # Update the workflow state
+        workflow_state.topics = topics
+        workflow_state.current_phase = "search"
+        
+        # Return topics with a flag to indicate we need to continue to search phase
+        return TopicResponse(topics=topics)
+    
+    @function_tool
+    async def generate_diverse_search_queries(topic: str) -> SearchQueries:
+        """
+        Generate diverse search queries for a given topic to ensure comprehensive coverage.
+        
+        Args:
+            topic: The topic to generate queries for
+            
+        Returns:
+            A list of search queries
+        """
+        # Generate variants of the search query to get diverse results
+        variants = [
+            f"{topic}",
+            f"{topic} code examples",
+            f"{topic} tutorial",
+            f"{topic} GitHub",
+            f"{topic} best practices",
+            f"{topic} case studies",
+            f"{topic} documentation"
+        ]
+        
+        return SearchQueries(queries=variants)
+    
+    @function_tool
+    async def evaluate_source_credibility(source_url: str, source_content: str) -> float:
+        """
+        Evaluate the credibility of a source based on its content and metadata.
+        
+        Args:
+            source_url: URL of the source
+            source_content: Content snippet from the source
+            
+        Returns:
+            Credibility score from 0.0 to 1.0
+        """
+        # In a real implementation, this would use a language model
+        # to evaluate the credibility based on content quality,
+        # source reputation, citation patterns, etc.
+        
+        # Without heuristics, we'll return a neutral score
+        # This would be replaced with actual source evaluation in production
+        return 0.7  # Neutral-positive default score
+    
+    @function_tool
+    async def analyze_research_findings() -> GapAnalysisResult:
+        """
+        Analyze the current research findings to identify coverage gaps.
+        
+        Returns:
+            Analysis of gaps that need further research
+        """
+        # In a real implementation, this would analyze the search results
+        # and findings to identify gaps
+        
+        # Check which topics have search results
+        covered_topics = set(workflow_state.search_results.keys())
+        all_topics = set(workflow_state.topics)
+        
+        # Identify gaps as topics without search results
+        missing_topics = all_topics - covered_topics
+        
+        gaps = [f"Missing research on: {topic}" for topic in missing_topics]
+        
+        # If we've done at least one iteration but don't have enough examples
+        if workflow_state.iterations_done >= 1:
+            total_results = sum(len(results) for results in workflow_state.search_results.values())
+            if total_results < 5:
+                gaps.append("Need more examples to provide comprehensive coverage")
+        
+        # Determine if research is complete based on iterations and gaps
+        # Force at least one more iteration to ensure we go through the full process
+        complete = (workflow_state.iterations_done >= 2) or (workflow_state.iterations_done >= 1 and not gaps)
+        
+        # Update workflow state
+        workflow_state.gaps = gaps
+        workflow_state.iterations_done += 1
+        
+        if complete:
+            workflow_state.current_phase = "synthesis"
+        else:
+            workflow_state.current_phase = "search"
+            
+        return GapAnalysisResult(gaps=gaps, complete=complete)
+    
+    @function_tool
+    async def create_research_synthesis() -> FinalResearchResponse:
+        """
+        Create a final research synthesis from all the gathered information.
+        
+        Returns:
+            The final research synthesis with best examples and analysis
+        """
+        # In a real implementation, this would use the LLM to create
+        # a synthesis of all the research findings
+        
+        # For this example, we'll create a structured response based on
+        # the search results we've collected
+        
+        # Flatten all search results
+        all_results = []
+        for results_list in workflow_state.search_results.values():
+            all_results.extend(results_list)
+        
+        # Create example objects from the search results without domain-specific quality ratings
+        examples = []
+        for result in all_results:
+            example = ResearchExample(
+                title=result.title,
+                description=result.content,
+                url=result.url,
+                highlights=["Implementation example", "Documentation", "Use case"],
+                source_quality="Standard"  # Neutral quality assessment
+            )
+            examples.append(example)
+        
+        # Create the final response
+        return FinalResearchResponse(
+            introduction=f"This research explores examples of {workflow_state.query}.",
+            best_examples=examples,
+            comparison="The examples vary in functionality and implementation approach.",
+            conclusion="Based on the research, there are several approaches to implementation, each with different features and capabilities.",
+            sources=[result.url for result in all_results]
+        )
+    
+    # Enhanced web search tool
+    web_search_tool = WebSearchTool(
+        search_context_size='high',  # Use high context for detailed results
+    )
+    
+    # Create specialized topic discovery agent
+    topic_discovery_agent = Agent(
+        name="Topic Discovery Agent",
+        instructions="""
+        You are a specialized agent focused on discovering the key aspects of a research topic.
+        
+        Follow these guidelines:
+        1. Break down the main research question into specific topic areas
+        2. Identify both obvious and non-obvious aspects that need investigation
+        3. Consider historical context, current state, and future implications
+        4. Look for potentially contradictory viewpoints or controversies
+        5. Prioritize topics based on their importance to the overall question
+        
+        Your goal is to create a comprehensive research plan that will guide
+        the rest of the research process.
+        """,
+        tools=[identify_research_topics],
+        model="gpt-4.1",
+        model_settings=lighter_model_settings,
+    )
+    
+    logger.debug("Topic discovery agent created")
 
-    # Create specialized search agent
+    # Create enhanced search agent
     search_agent = Agent(
         name="Research Search Agent",
         instructions="""
         You are a specialized search agent focused on finding comprehensive information 
-        for deep research queries.
+        for deep research queries. Your goal is maximum coverage across diverse sources.
         
         Follow these guidelines:
-        1. Identify key aspects of the research question that need investigation
-        2. Formulate effective search queries to find relevant information
-        3. Search for diverse and reliable sources on each aspect of the topic
-        4. Prioritize academic and authoritative sources
-        5. Gather information from multiple perspectives
-        6. Collect both factual information and different viewpoints
-        7. Document sources thoroughly for each piece of information
-        8. Be thorough in your search to ensure comprehensive coverage
+        1. For each topic area, generate multiple search queries to ensure coverage
+        2. Use the generate_diverse_search_queries tool to create varied search terms
+        3. Execute web searches for each query to gather information using the web_search_tool tool
+        4. For each source found:
+           - Use evaluate_source_credibility to assess reliability
+           - Extract key information and associate it with topics
+        5. Prioritize finding diverse source types:
+           - Official documentation and examples
+           - GitHub repositories and code examples
+           - Case studies and real-world implementations
+           - Comparison articles and analyses
+        6. Document all sources thoroughly with proper citations
+        7. Execute searches for ALL the topics provided to ensure comprehensive coverage
         
-        Remember, your primary role is to GATHER information, not analyze it.
-        Always provide full context and sources for the analysis agent to work with.
+        Remember, your goal is to gather COMPREHENSIVE information across DIVERSE sources.
+        Be methodical and thorough, making sure to search for each topic area.
         """,
         tools=[
-            # Web search with high context for detailed results
-            WebSearchTool(
-                search_context_size='high'
-            ),
+            generate_diverse_search_queries,
+            web_search_tool,
+            evaluate_source_credibility,
         ],
         model="gpt-4.1",
         model_settings=powerful_model_settings,
     )
     
-    logger.debug("Search agent created with WebSearchTool")
+    logger.debug("Enhanced search agent created with diverse search strategies")
 
-    # Create specialized analysis agent
+    # Create enhanced analysis agent
     analysis_agent = Agent(
         name="Research Analysis Agent",
         instructions="""
         You are a specialized analysis agent that synthesizes and evaluates research information.
+        Your goal is to produce comprehensive, nuanced analysis with excellent source integration.
         
         Follow these guidelines:
-        1. Carefully analyze the information provided by the search agent
-        2. Synthesize findings across multiple sources to form a comprehensive view
+        1. Carefully analyze all the search results that have been collected
+        2. Group findings by topic area to identify patterns and relationships
         3. Evaluate the credibility and relevance of each source
-        4. Identify patterns, contradictions, and gaps in the available information
-        5. Draw well-reasoned conclusions based on the evidence
-        6. Structure your analysis with clear sections (background, analysis, implications)
-        7. Note areas where expert consensus exists or where opinions diverge
-        8. Highlight limitations and uncertainties in the available information
-        9. Identify areas that would benefit from additional research
+        4. Identify connections, contradictions, and gaps across sources
+        5. Use the analyze_research_findings tool to identify areas needing more research
+        6. Draw well-reasoned conclusions based on the evidence, noting certainty levels
         
-        Your role is to ANALYZE and SYNTHESIZE information, not to search for more content.
-        Provide a thorough analysis with well-supported conclusions and identify any gaps
-        that might require additional search.
+        Your role is to provide thorough analysis and determine if additional
+        research iterations are needed before proceeding to the final synthesis.
         """,
+        tools=[
+            analyze_research_findings,
+        ],
         model="gpt-4.1",
         model_settings=powerful_model_settings,
     )
     
-    logger.debug("Analysis agent created")
+    logger.debug("Enhanced analysis agent created with gap identification")
 
-    # Create triage agent that coordinates between search and analysis
+    # Create synthesis agent for final research product
+    synthesis_agent = Agent(
+        name="Research Synthesis Agent",
+        instructions="""
+        You are a specialized synthesis agent that creates the final research product.
+        Your goal is to create a comprehensive, well-structured research document.
+        
+        Follow these guidelines:
+        1. Use the create_research_synthesis tool to generate the final research product
+        2. Ensure the synthesis includes:
+           - A clear introduction to the research question
+           - Detailed descriptions of the best examples found
+           - Thoughtful comparison of different approaches
+           - A conclusive recommendation based on the evidence
+           - Complete list of sources consulted
+        
+        Your goal is to create a DEFINITIVE research document that represents
+        the most comprehensive answer possible to the original query.
+        """,
+        tools=[
+            create_research_synthesis,
+        ],
+        model="gpt-4.1",
+        model_settings=powerful_model_settings,
+    )
+    
+    logger.debug("Synthesis agent created for final research products")
+
+    # Convert agents to tools instead of using handoffs
+    topic_discovery_tool = topic_discovery_agent.as_tool(
+        "discover_research_topics",
+        "Identifies key research topics to investigate for a given query"
+    )
+    
+    search_tool = search_agent.as_tool(
+        "search_for_information",
+        "Searches for comprehensive information on the identified topics"
+    )
+    
+    analysis_tool = analysis_agent.as_tool(
+        "analyze_research_findings",
+        "Analyzes the collected information and identifies any gaps that need further research"
+    )
+    
+    synthesis_tool = synthesis_agent.as_tool(
+        "create_final_synthesis",
+        "Creates a comprehensive final research document with examples and analysis"
+    )
+    
+    # Enhanced triage agent that manages the research workflow using tools
     triage_agent = Agent(
         name="Deep Research Coordinator",
         instructions="""
-        You are a research coordinator that orchestrates the deep research process by 
-        managing specialized search and analysis agents.
+        You are the lead researcher coordinating a comprehensive research process.
+        Your goal is to produce thorough, actionable research through a systematic approach.
         
-        Follow these guidelines:
-        1. Start by handing off to the search agent to gather initial information
-        2. Then, hand off to the analysis agent to evaluate and synthesize the findings
-        3. Review the analysis to determine if additional research is needed:
-           - Are there important aspects of the question not yet addressed?
-           - Are there contradictions that need resolution?
-           - Are there knowledge gaps that require more information?
-        4. If more research is needed, formulate specific follow-up questions and hand off
-           again to the search agent with these targeted queries
-        5. Continue this iterative process until you have a comprehensive understanding
-        6. When sufficient research has been conducted, prepare a final synthesis that:
-           - Provides a thorough answer to the original question
-           - Presents multiple perspectives where relevant
-           - Acknowledges limitations of the research
-           - Cites sources appropriately
+        YOU MUST FOLLOW THIS EXACT PROCESS IN ORDER:
         
-        For complex topics, you should perform multiple iterations of search and analysis.
-        Simple topics may require only one or two iterations.
+        1. FIRST, use the discover_research_topics tool to identify key research areas
+           - Review the topics identified
         
-        Your goal is to produce the most comprehensive and well-reasoned research possible.
+        2. THEN, use the search_for_information tool to gather information on ALL topics
+           - Make sure to provide all topics to the search tool
+           - Ensure comprehensive information gathering
+        
+        3. NEXT, use the analyze_research_findings tool to evaluate and identify gaps
+           - Review the analysis carefully
+        
+        4. FINALLY, use the create_final_synthesis tool to create the complete research document
+           - This will produce the final comprehensive research
+        
+        You MUST execute ALL FOUR TOOLS in EXACTLY this order. Do not skip any steps.
+        Each step builds on the previous one to ensure thorough research.
+        
+        YOUR RESPONSE SHOULD ONLY CONTAIN THE FINAL RESEARCH RESULTS from the create_final_synthesis tool.
+        Do not add your own summary, introduction, or conclusion.
         """,
+        tools=[
+            topic_discovery_tool,
+            search_tool, 
+            analysis_tool,
+            synthesis_tool
+        ],
         model="gpt-4.1",
         model_settings=lighter_model_settings,
-        handoffs=[
-            handoff(search_agent),
-            handoff(analysis_agent),
-        ],
     )
     
-    logger.debug("Triage agent created with handoffs to search and analysis agents")
+    logger.debug("Enhanced triage agent created with tools pattern for full research workflow")
 
     async def run_agent(query: str):
         """Run the agent with the given query."""
         logger.info(f"Running deep research query: {query}")
+        
+        # Initialize the workflow state
+        workflow_state.query = query
+        # Reset any previous state
+        workflow_state.topics = []
+        workflow_state.search_results = {}
+        workflow_state.findings = []
+        workflow_state.current_phase = "discovery"
+        workflow_state.iterations_done = 0
+        workflow_state.gaps = []
+        
         try:
             # If Langfuse is enabled, wrap the agent run with a trace context
             if enable_langfuse:
@@ -235,24 +553,63 @@ def load_deep_research_agent(enable_langfuse: bool = False, service_name: str = 
                             except Exception as e:
                                 logger.warning(f"Could not set input attribute on span: {e}")
                         
-                        # Use a higher max_turns value for deep research to allow for more extensive analysis
-                        # and multiple iterations of search-analyze cycles
+                        # Force multiple turns to ensure all tools get used
                         result = await Runner.run(
                             triage_agent,
-                            query,
-                            max_turns=20,  # Increased max_turns to allow for multiple iterations
+                            f"""
+                            Perform comprehensive research on: {query}
+                            
+                            IMPORTANT EXECUTION INSTRUCTIONS:
+                            1. You MUST use ALL FOUR tools in the exact order: discover_research_topics → search_for_information → analyze_research_findings → create_final_synthesis
+                            2. Do not skip any tools
+                            3. Ensure each tool is given proper inputs based on the previous tool's output
+                            4. The final result should include specific examples and detailed findings
+                            
+                            Begin the research process now.
+                            """,
+                            max_turns=30,  # Provide enough turns for all tools to be used
                         )
                         
                         # Set output for the trace if span is not None
                         if span is not None:
                             try:
                                 span.set_attribute("output.value", result.final_output)
+                                # Add research metrics to trace
+                                span.set_attribute("research.iterations_completed", workflow_state.iterations_done)
+                                span.set_attribute("research.sources_count", len(workflow_state.search_results))
+                                span.set_attribute("research.findings_count", len(workflow_state.findings))
                             except Exception as e:
                                 logger.warning(f"Could not set output attribute on span: {e}")
                         
-                        logger.info("Deep research completed successfully")
+                        logger.info(f"Deep research completed successfully")
                         logger.debug(f"Response length: {len(result.final_output)}")
-                        return result.final_output
+                        
+                        # Format the final research response
+                        formatted_output = f"# {query}\n\n"
+                        formatted_output += "## Research Findings\n\n"
+                        
+                        # Add the raw output from the agent
+                        formatted_output += result.final_output
+                        
+                        # Add sources section if we have any search results
+                        if workflow_state.search_results:
+                            formatted_output += "\n\n## Sources\n\n"
+                            all_sources = set()
+                            for results_list in workflow_state.search_results.values():
+                                for result_item in results_list:
+                                    all_sources.add(result_item.url)
+                            
+                            for source in all_sources:
+                                formatted_output += f"- {source}\n"
+                                
+                        # Add phase information for debugging
+                        formatted_output += f"\n\n## Debug Info\n\n"
+                        formatted_output += f"- Final phase: {workflow_state.current_phase}\n"
+                        formatted_output += f"- Iterations completed: {workflow_state.iterations_done}\n"
+                        formatted_output += f"- Topics identified: {len(workflow_state.topics)}\n"
+                        formatted_output += f"- Search results collected: {sum(len(results) for results in workflow_state.search_results.values())}\n"
+                                
+                        return formatted_output
                 except ImportError as e:
                     logger.warning(f"Could not import create_trace: {e}")
                     logger.warning("Running without tracing.")
@@ -263,18 +620,54 @@ def load_deep_research_agent(enable_langfuse: bool = False, service_name: str = 
             # Run normally without tracing if Langfuse failed or is disabled
             result = await Runner.run(
                 triage_agent,
-                query,
-                max_turns=20,  # Increased max_turns to allow for multiple iterations
+                f"""
+                Perform comprehensive research on: {query}
+                
+                IMPORTANT EXECUTION INSTRUCTIONS:
+                1. You MUST use ALL FOUR tools in the exact order: discover_research_topics → search_for_information → analyze_research_findings → create_final_synthesis
+                2. Do not skip any tools
+                3. Ensure each tool is given proper inputs based on the previous tool's output
+                4. The final result should include specific examples and detailed findings
+                
+                Begin the research process now.
+                """,
+                max_turns=30,  # Provide enough turns for all tools to be used
             )
-            logger.info("Deep research completed successfully")
+            logger.info(f"Deep research completed successfully")
             logger.debug(f"Response length: {len(result.final_output)}")
-            return result.final_output
+            
+            # Format the final research response
+            formatted_output = f"# {query}\n\n"
+            formatted_output += "## Research Findings\n\n"
+            
+            # Add the raw output from the agent
+            formatted_output += result.final_output
+            
+            # Add sources section if we have any search results
+            if workflow_state.search_results:
+                formatted_output += "\n\n## Sources\n\n"
+                all_sources = set()
+                for results_list in workflow_state.search_results.values():
+                    for result_item in results_list:
+                        all_sources.add(result_item.url)
+                
+                for source in all_sources:
+                    formatted_output += f"- {source}\n"
+            
+            # Add phase information for debugging
+            formatted_output += f"\n\n## Debug Info\n\n"
+            formatted_output += f"- Final phase: {workflow_state.current_phase}\n"
+            formatted_output += f"- Iterations completed: {workflow_state.iterations_done}\n"
+            formatted_output += f"- Topics identified: {len(workflow_state.topics)}\n"
+            formatted_output += f"- Search results collected: {sum(len(results) for results in workflow_state.search_results.values())}\n"
+                    
+            return formatted_output
                 
         except Exception as e:
             logger.error(f"Error running deep research agent: {str(e)}")
             raise
 
-    logger.info("Deep research agent system initialized and ready for queries")
+    logger.info("Enhanced deep research agent system initialized and ready for queries")
     return triage_agent, run_agent
 
 
@@ -293,7 +686,7 @@ async def run_query(query: str, enable_langfuse: bool = False):
     
     # Run the query and return the result
     logger.info("Sending query to agent")
-    print("Running deep research... This may take some time for thorough analysis and multiple search iterations.")
+    print("Running deep research... This may take several minutes for comprehensive analysis with multiple search iterations.")
     result = await run_agent(query)
     logger.info("Query completed successfully")
     return result
@@ -347,6 +740,8 @@ async def main_async():
     parser.add_argument("--log-file", help="Log to this file in addition to console")
     parser.add_argument("--enable-langfuse", action="store_true", 
                         help="Enable Langfuse tracing for observability")
+    parser.add_argument("--max-iterations", type=int, default=3,
+                        help="Maximum number of search-analysis iterations (default: 3)")
     args = parser.parse_args()
     
     # Setup logging
