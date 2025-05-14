@@ -1,16 +1,14 @@
-# Fact Check: Deep-Research for Codebases: Methods and Challenges for Automated File Usage and Dependency Analysis
+# Fact Check: Tracking Prompts, Results, and Costs in OpenAI Agents SDK: Best Practices and Considerations
 
 ## Overall Assessment
 
-The report is thorough, detailed, and methodologically well-structured, offering a balanced view of the potential and challenges in automated file usage and dependency analysis. However, in the absence of actual source document summaries, it is difficult to confirm whether major factual claims—such as consensus statements, comparative language support, and preferences in tooling integration—are directly backed by primary sources. No outright false statements are detected, but many observations remain unsupported due to the lack of source evidence. The report would benefit from clearly referencing or summarizing primary sources to substantiate its conclusions and to clarify where real-world disagreements and evidence gaps lie.
+The report accurately synthesizes typical best practices and considerations for tracking prompts, results, and costs in the OpenAI Agents SDK. Most claims are general and presented as summaries of community practices, but some broad statements are not directly tied to specific sources. The report acknowledges existing disagreements (such as on granularity/performance and centralization) rather than asserting a single perspective, appropriately flagging points of conflict. No specific misleading or clearly false claims were found, but readers should note where assertions are based on general observation rather than detailed, sourced evidence. Overall, the report is factually solid but would benefit from more direct links between claims and referenced sources, especially for generalizations about community practice.
 
 ## Unsupported Claims
 
-- The report claims that 'static analysis is more mature for statically-typed languages (e.g., Java, C#) than for dynamic or weakly-typed ones (e.g., JavaScript, Python).' Without relevant document summaries, source support for this is unclear.
-- Statements about the prevalence, maturity, or consensus on developer tooling integration (like VSCode/JetBrains) lack explicit source support without summaries.
-- The claim that 'comprehensive tooling must combine static and dynamic approaches' is asserted as consensus, but without sources it's unclear whether this is universally agreed upon.
+- No specific quantitative claims (such as exact performance impact, adoption rates, or cost figures) are present that would require direct sourcing, but some broad statements like 'most projects utilize SDK-provided hooks' and 'third-party observability and analytics tools are increasingly integrated' are not tied to specific sources or metrics, making these qualitative generalizations unsupported by precise external data in this report.
+- The assertion that 'there is debate over using centralized dashboards versus decentralized, per-agent logging' is described qualitatively without direct citations of sources or concrete disagreements from the referenced materials.
 
 ## Conflicting Claims
 
-- The report notes disagreements over whether static analysis is sufficient for dynamic languages, with some sources arguing for modern parser capabilities and others for its shortcomings—however, without the source summaries included, it's not possible to determine the details or extent of these conflicts.
-- There is mention of disagreements about the value of deep IDE integration versus language-agnostic tools, but without the summaries, we can't weigh the validity or representativeness of these positions.
+- The report notes a thematic disagreement on 'granularity vs. performance,' with 'some sources advocate for selective logging, while others recommend comprehensive auditing.' This conflict is documented as part of Theme 3, but no specific conflicting numerical or factual claims are presented, only that disagreements exist in the community.

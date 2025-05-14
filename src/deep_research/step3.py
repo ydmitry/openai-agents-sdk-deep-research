@@ -39,6 +39,7 @@ class BulletsJSON(BaseModel):
     """Structured representation of key facts extracted from a document chunk."""
     source_id: int = Field(..., description="ID of the source document")
     bullets: List[str] = Field(..., description="3-5 key facts, each with source reference")
+    paragraph_summary: str = Field(default="", description="A paragraph summary with emphasized main points and references")
 
 class DocSummary(BaseModel):
     """Structured representation of a document-level summary."""
@@ -77,7 +78,7 @@ def textrank_bullets(text: str, source_id: int) -> BulletsJSON:
         source_id: ID of the source document
 
     Returns:
-        BulletsJSON with extracted bullet points
+        BulletsJSON with extracted bullet points and paragraph summary
     """
     # In a production environment, implement an actual TextRank algorithm
     # This is a placeholder that just returns the first few sentences
@@ -92,8 +93,17 @@ def textrank_bullets(text: str, source_id: int) -> BulletsJSON:
     # If we couldn't extract meaningful bullets, create a placeholder
     if not extracted_bullets:
         extracted_bullets = [f"Content from source {source_id}"]
+        paragraph_summary = f"Information extracted from source <{source_id}> was insufficient for detailed analysis."
+    else:
+        # Create a basic paragraph summary (the LLM will enhance this)
+        important_sentence = sentences[0] if sentences else ""
+        paragraph_summary = f"Analysis of the source reveals that **{important_sentence}** <{source_id}>. " + " ".join(sentences[1:3]) + f" <{source_id}>"
 
-    return BulletsJSON(source_id=source_id, bullets=extracted_bullets)
+    return BulletsJSON(
+        source_id=source_id,
+        bullets=extracted_bullets,
+        paragraph_summary=paragraph_summary
+    )
 
 # -----------------------------
 # Agent definitions
@@ -104,14 +114,26 @@ BulletExtractor = Agent(
     instructions="""
     You are an expert at extracting key facts from documents.
 
-    Your task is to extract 3-5 important points from the provided text.
-    Each fact should be:
-    1. Self-contained and meaningful
-    2. Focused on factual information
-    3. Include the source_id token in format <SOURCE_ID> at the end
+    Your task is to extract main point from the provided text and create both:
+
+    1. A bullet point list where each fact should be:
+       - Self-contained and meaningful
+       - Focused on factual information
+       - Include the source_id token in format <SOURCE_ID> at the end
+
+    2. A paragraph summary that:
+       - Synthesizes the key facts into a coherent paragraph
+       - Uses **bold text** to emphasize the main points
+       - Includes references to the source using <SOURCE_ID> format
+       - Connects ideas smoothly with transitions
+       - Prioritizes the most significant findings
+       - Can contain code snippets if requested
+       - Contains 3-5 sentences
+
+    The paragraph should read naturally while highlighting the most important information and maintaining proper source attribution.
 
     Call the textrank_bullets tool with chunks of the document to get initial extractions,
-    then review and refine the results before returning the final BulletsJSON.
+    then review and refine the results before returning the final BulletsJSON with both bullets and paragraph summary.
     """,
     tools=[textrank_bullets],
     model="gpt-4.1",
@@ -123,12 +145,18 @@ DocSummarizer = Agent(
     instructions="""
     You are a document summarization expert.
 
-    Create a concise summary (≤200 words) of the document based on the key facts provided.
+    Create a summary of the document based on the key facts provided.
+    You'll receive information in two formats:
+    1. Bullet points - individual key facts
+    2. Paragraph summaries - coherent paragraph 3-5 sentences with emphasized points
+
     Your summary should:
-    1. Integrate all important facts from the bullet points
+    1. Integrate all important facts from both the bullet points and paragraph summaries
     2. Maintain the narrative flow and context
     3. Preserve source references using <SOURCE_ID> format for each fact
     4. Focus on factual information relevant to the research objective
+    5. Preserve the emphasis on key points that were highlighted with bold formatting
+    6. Create a coherent narrative that connects the most important findings
 
     The returned DocSummary should include the document title, URL, and source ID.
     """,
@@ -195,12 +223,10 @@ CriticAgent = Agent(
     instructions="""
     You are a fact-checker and critical evaluator.
 
-    Review the final report against the source document summaries to:
-    1. Identify any claims in the report that lack proper source support
-    2. Flag any conflicting claims across different sources
-    3. Evaluate the overall factual accuracy of the report
+    Your primary responsibility is to **identify any claims in the report that lack proper source support** and **flag any conflicting claims across different sources**. This kind of agent essentially performs an automated peer-review. It won't be perfect (since the LLM might miss subtle errors), but it often catches blatant hallucinations or mistakes. For example, if the report stated a number or quote that doesn't appear in any source, the critic can flag that as "unsupported." Similarly, if two sources reported different values for something but the summary only presented one without noting the discrepancy, the critic might flag a "conflict." Having an agent explicitly look for these problems greatly increases the chance of noticing an error before it reaches the end user.
 
-    Focus on substance rather than style or grammar.
+    Focus on substance rather than style or grammar, and provide an overall assessment of the report's factual accuracy.
+
     Return a FactCheck object with your findings.
     """,
     model="gpt-4.1",
@@ -416,13 +442,19 @@ class ResearchSummarizer:
             for b in bullets
         ])
 
+        # Combine all paragraph summaries
+        paragraph_summaries = "\n\n".join([b.paragraph_summary for b in bullets if b.paragraph_summary])
+
         input_text = f"""
         Document ID: {document.source_task_id}
         URL: {document.url}
         Title: {document.title}
 
-        Key Facts:
+        Key Facts (Bullet Points):
         {all_bullets}
+
+        Key Facts (Paragraph Summaries):
+        {paragraph_summaries}
         """
 
         run_config = RunConfig(

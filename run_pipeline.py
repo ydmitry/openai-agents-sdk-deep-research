@@ -38,7 +38,7 @@ async def run_pipeline_async(topic, out_dir, models=None, concurrency=4):
     """
     if models is None:
         models = {
-            "planner": "o3",
+            "planner": "o4-mini",
             "searcher": "gpt-4.1",
             "bullet": "gpt-4.1",
             "summary": "gpt-4.1",
@@ -147,7 +147,6 @@ def main():
     parser.add_argument("objective", help="Research objective or question")
     parser.add_argument("--out-dir", "-o", default="./output", help="Output directory for all artifacts")
     parser.add_argument("--model", "-m", default="gpt-4.1", help="OpenAI model to use")
-    parser.add_argument("--planner-model", "-pm", default="o3", help="OpenAI model to use")
     parser.add_argument("--concurrency", "-c", type=int, default=4, help="Parallel tasks (default: 4)")
     parser.add_argument("--skip-verification", action="store_true", help="Skip the final verification step")
     args = parser.parse_args()

@@ -1,55 +1,50 @@
 {
-  "objective": "Develop a deep-research feature for codebases that, given a file, can search its usages, imports, dependencies, and related references across the project",
+  "objective": "how to track prompts, results and costs in openai agents sdk",
   "sub_tasks": [
     {
       "id": 1,
-      "task": "Define detailed functional requirements and user stories (e.g., file lookup, import chain tracing, call graph visualization)",
+      "task": "Review OpenAI Agents SDK official documentation for built-in tracking and logging features.",
       "priority": 1
     },
     {
       "id": 2,
-      "task": "Survey existing tools and libraries (e.g., Language Server Protocol implementations, ctags, Sourcegraph, OpenGrok) and identify reusable components",
+      "task": "Identify methods to log prompts and responses within the SDK\u2019s workflow (e.g., hooks, callbacks, middleware).",
       "priority": 2
     },
     {
       "id": 3,
-      "task": "Select and integrate AST parsing technology (e.g., tree-sitter for multi-language support, Babel for JavaScript, Roslyn for .NET) to extract syntax trees and symbol tables",
+      "task": "Investigate programmatic access to usage and cost data via OpenAI API (e.g., tokens used, billing endpoints).",
       "priority": 3
     },
     {
       "id": 4,
-      "task": "Design and build an indexing architecture using a search engine (e.g., Elasticsearch, Apache Lucene) to store symbols, import graphs, and full-text code",
+      "task": "Explore third-party tools and libraries for tracking and visualizing prompt/result/cost data with OpenAI agents.",
       "priority": 4
     },
     {
       "id": 5,
-      "task": "Implement cross-file dependency and reference analysis (e.g., build import graphs, call graphs, inheritance hierarchies) and store edges in a graph database (e.g., Neo4j)",
+      "task": "Examine examples from OpenAI and the developer community showcasing tracking implementations.",
       "priority": 5
     },
     {
       "id": 6,
-      "task": "Prototype a UI/UX for navigating code relationships (e.g., interactive graph viewer, jump-to-definition, usage lists)",
+      "task": "Assess best practices for storing and querying prompt/result/cost logs (e.g., local files, databases, cloud logging).",
       "priority": 6
     },
     {
       "id": 7,
-      "task": "Research and handle dynamic language features (e.g., dynamic imports in Python/JavaScript, reflection in Java/.NET) to identify knowledge gaps",
+      "task": "Identify any SDK limitations or knowledge gaps related to tracking (such as real-time cost estimation or prompt/result linkage).",
       "priority": 7
     },
     {
       "id": 8,
-      "task": "Plan performance, scalability, and incremental indexing strategies for large codebases (e.g., sharding, delta updates)",
+      "task": "Compare tracking capabilities between different OpenAI SDK versions or similar frameworks (e.g., LangChain, LlamaIndex).",
       "priority": 8
     },
     {
       "id": 9,
-      "task": "Design testing and benchmarking framework using open-source repositories (e.g., Linux kernel, React, Spring) to validate accuracy and speed",
+      "task": "Suggest actionable steps for integrating custom tracking (e.g., event emitters or decorators) if built-in options are insufficient.",
       "priority": 9
-    },
-    {
-      "id": 10,
-      "task": "Define integration points with version control systems and CI pipelines (e.g., Git hooks, GitLab/GitHub Actions) for automated re-indexing",
-      "priority": 10
     }
   ]
 }

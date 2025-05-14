@@ -81,7 +81,7 @@ into a concise, prioritized list of executable sub‑tasks.  Use the following
 policy:
 
 1. **Brainstorm**: Think step‑by‑step (Chain‑of‑Thought) to break the objective
-   into granular research questions.  Cover breadth (major themes) before depth
+   into granular research questions. Cover breadth (major themes) before depth
    (specific metrics or sources).
 2. **Prioritize**: Rank the questions by their importance in addressing the
    objective (1 = highest priority).  Limit to 8–12 tasks to keep downstream
@@ -118,7 +118,7 @@ async def _async_generate_plan(objective: str, model: str = "o4-mini", **kwargs)
 
     # Extract model settings from kwargs
     temperature = kwargs.pop('temperature', 0.7)
-    max_tokens = kwargs.pop('max_tokens', None)
+    max_tokens = kwargs.pop('max_tokens', 8048)
 
     # Create model settings with conditional reasoning effort
     model_settings = get_model_settings(
