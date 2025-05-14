@@ -3,10 +3,12 @@
 Example script demonstrating the deep research agent functionality.
 
 This script shows how to:
-1. Initialize a deep research agent with sequential thinking capabilities
+1. Initialize a deep research system with multiple specialized agents
 2. Ask complex research questions requiring in-depth analysis
-3. Process and display comprehensive research results
-4. Optionally enable Langfuse tracing for observability
+3. Use a triage agent to coordinate between search and analysis agents
+4. Enable iterative refinement of research through multiple search-analyze cycles
+5. Process and display comprehensive research results
+6. Optionally enable Langfuse tracing for observability
 
 Usage:
     python deep_research_example.py "What are the environmental impacts of lithium mining?"
@@ -67,19 +69,20 @@ logger = logging.getLogger(__name__)
 
 def load_deep_research_agent(enable_langfuse: bool = False, service_name: str = "deep_research_agent"):
     """
-    Factory function to create and return a deep research agent with sequential thinking.
+    Factory function to create and return a deep research system with multiple specialized agents.
     
     Args:
         enable_langfuse: Whether to enable Langfuse tracing
         service_name: Service name to use for Langfuse tracing
         
     Returns:
-        tuple: (agent, run_agent_function) - The configured agent instance and a function to run queries.
+        tuple: (agent, run_agent_function) - The configured triage agent and a function to run queries.
     """
     import openai
     from agents import Agent, Runner, WebSearchTool, ModelSettings
+    from agents import handoff
 
-    logger.info("Initializing deep research agent")
+    logger.info("Initializing deep research agent system")
 
     # Set up Langfuse tracing if enabled
     if enable_langfuse:
@@ -97,47 +100,115 @@ def load_deep_research_agent(enable_langfuse: bool = False, service_name: str = 
     # Get API client
     async_client = openai.AsyncOpenAI()
 
-    # Create an agent with deep research capabilities using sequential thinking
-    agent = Agent(
-        name="Deep Research Assistant",
+    # Define shared model settings for more consistency
+    powerful_model_settings = get_model_settings(
+        model_name="gpt-4.1",
+        temperature=0.2,  # Lower temperature for more focused responses
+        max_tokens=4000,  # Allow for comprehensive responses
+    )
+    
+    lighter_model_settings = get_model_settings(
+        model_name="gpt-4.1",
+        temperature=0.1,  # Even lower temperature for coordination
+        max_tokens=1000,  # Less tokens needed for coordination
+    )
+
+    # Create specialized search agent
+    search_agent = Agent(
+        name="Research Search Agent",
         instructions="""
-        You are an advanced deep research assistant that provides comprehensive, nuanced analysis 
-        on complex topics. You combine web search with structured sequential thinking to deliver 
-        in-depth, well-reasoned research.
+        You are a specialized search agent focused on finding comprehensive information 
+        for deep research queries.
         
         Follow these guidelines:
-        1. For complex questions, use sequential thinking to break down the research process into steps.
-           - First, identify the key aspects of the question that need investigation
-           - Search for reliable sources on each aspect
-           - Analyze and synthesize findings from multiple sources
-           - Draw well-reasoned conclusions based on the evidence
-        2. Search for multiple perspectives and scholarly sources on the topic.
-        3. Evaluate the credibility of sources, distinguishing between factual information and opinions.
-        4. Synthesize information across multiple sources to form a comprehensive view.
-        5. Acknowledge limitations and gaps in available information.
-        6. Structure your response with clear sections (background, analysis, implications).
-        7. Always cite your sources thoroughly.
-        8. Where appropriate, note areas where expert consensus exists or where opinions diverge.
+        1. Identify key aspects of the research question that need investigation
+        2. Formulate effective search queries to find relevant information
+        3. Search for diverse and reliable sources on each aspect of the topic
+        4. Prioritize academic and authoritative sources
+        5. Gather information from multiple perspectives
+        6. Collect both factual information and different viewpoints
+        7. Document sources thoroughly for each piece of information
+        8. Be thorough in your search to ensure comprehensive coverage
+        
+        Remember, your primary role is to GATHER information, not analyze it.
+        Always provide full context and sources for the analysis agent to work with.
         """,
         tools=[
             # Web search with high context for detailed results
             WebSearchTool(
                 search_context_size='high'
             ),
-            # Sequential thinking is implemented through detailed agent instructions
-            # and the model's inherent reasoning capabilities, not as a separate tool
         ],
-        # Use a powerful model suited for deep research
         model="gpt-4.1",
-        # Configure model settings for deep analysis
-        model_settings=get_model_settings(
-            model_name="gpt-4.1",
-            temperature=0.2,  # Lower temperature for more focused responses
-            max_tokens=4000,  # Allow for comprehensive responses
-        ),
+        model_settings=powerful_model_settings,
     )
+    
+    logger.debug("Search agent created with WebSearchTool")
 
-    logger.debug("Deep research agent created with WebSearchTool and GPT-4.1 model")
+    # Create specialized analysis agent
+    analysis_agent = Agent(
+        name="Research Analysis Agent",
+        instructions="""
+        You are a specialized analysis agent that synthesizes and evaluates research information.
+        
+        Follow these guidelines:
+        1. Carefully analyze the information provided by the search agent
+        2. Synthesize findings across multiple sources to form a comprehensive view
+        3. Evaluate the credibility and relevance of each source
+        4. Identify patterns, contradictions, and gaps in the available information
+        5. Draw well-reasoned conclusions based on the evidence
+        6. Structure your analysis with clear sections (background, analysis, implications)
+        7. Note areas where expert consensus exists or where opinions diverge
+        8. Highlight limitations and uncertainties in the available information
+        9. Identify areas that would benefit from additional research
+        
+        Your role is to ANALYZE and SYNTHESIZE information, not to search for more content.
+        Provide a thorough analysis with well-supported conclusions and identify any gaps
+        that might require additional search.
+        """,
+        model="gpt-4.1",
+        model_settings=powerful_model_settings,
+    )
+    
+    logger.debug("Analysis agent created")
+
+    # Create triage agent that coordinates between search and analysis
+    triage_agent = Agent(
+        name="Deep Research Coordinator",
+        instructions="""
+        You are a research coordinator that orchestrates the deep research process by 
+        managing specialized search and analysis agents.
+        
+        Follow these guidelines:
+        1. Start by handing off to the search agent to gather initial information
+        2. Then, hand off to the analysis agent to evaluate and synthesize the findings
+        3. Review the analysis to determine if additional research is needed:
+           - Are there important aspects of the question not yet addressed?
+           - Are there contradictions that need resolution?
+           - Are there knowledge gaps that require more information?
+        4. If more research is needed, formulate specific follow-up questions and hand off
+           again to the search agent with these targeted queries
+        5. Continue this iterative process until you have a comprehensive understanding
+        6. When sufficient research has been conducted, prepare a final synthesis that:
+           - Provides a thorough answer to the original question
+           - Presents multiple perspectives where relevant
+           - Acknowledges limitations of the research
+           - Cites sources appropriately
+        
+        For complex topics, you should perform multiple iterations of search and analysis.
+        Simple topics may require only one or two iterations.
+        
+        Your goal is to produce the most comprehensive and well-reasoned research possible.
+        """,
+        model="gpt-4.1",
+        model_settings=lighter_model_settings,
+        handoffs=[
+            handoff(search_agent),
+            handoff(analysis_agent),
+        ],
+    )
+    
+    logger.debug("Triage agent created with handoffs to search and analysis agents")
 
     async def run_agent(query: str):
         """Run the agent with the given query."""
@@ -165,10 +236,11 @@ def load_deep_research_agent(enable_langfuse: bool = False, service_name: str = 
                                 logger.warning(f"Could not set input attribute on span: {e}")
                         
                         # Use a higher max_turns value for deep research to allow for more extensive analysis
+                        # and multiple iterations of search-analyze cycles
                         result = await Runner.run(
-                            agent,
+                            triage_agent,
                             query,
-                            max_turns=10,  # Allow more turns for thorough research
+                            max_turns=20,  # Increased max_turns to allow for multiple iterations
                         )
                         
                         # Set output for the trace if span is not None
@@ -190,9 +262,9 @@ def load_deep_research_agent(enable_langfuse: bool = False, service_name: str = 
             
             # Run normally without tracing if Langfuse failed or is disabled
             result = await Runner.run(
-                agent,
+                triage_agent,
                 query,
-                max_turns=10,  # Allow more turns for thorough research
+                max_turns=20,  # Increased max_turns to allow for multiple iterations
             )
             logger.info("Deep research completed successfully")
             logger.debug(f"Response length: {len(result.final_output)}")
@@ -202,8 +274,8 @@ def load_deep_research_agent(enable_langfuse: bool = False, service_name: str = 
             logger.error(f"Error running deep research agent: {str(e)}")
             raise
 
-    logger.info("Deep research agent initialized and ready for queries")
-    return agent, run_agent
+    logger.info("Deep research agent system initialized and ready for queries")
+    return triage_agent, run_agent
 
 
 async def run_query(query: str, enable_langfuse: bool = False):
@@ -221,7 +293,7 @@ async def run_query(query: str, enable_langfuse: bool = False):
     
     # Run the query and return the result
     logger.info("Sending query to agent")
-    print("Running deep research... This may take some time for thorough analysis.")
+    print("Running deep research... This may take some time for thorough analysis and multiple search iterations.")
     result = await run_agent(query)
     logger.info("Query completed successfully")
     return result
@@ -241,7 +313,7 @@ async def interactive_mode(enable_langfuse: bool = False):
     _, run_agent = load_deep_research_agent(enable_langfuse=enable_langfuse)
     
     print("Deep Research Agent (type 'exit' to quit)")
-    print("Note: Deep research takes more time than simple web searches for comprehensive analysis.")
+    print("Note: Deep research takes more time than simple searches for comprehensive analysis with multiple iterations.")
     
     query_count = 0
     while True:
@@ -252,7 +324,7 @@ async def interactive_mode(enable_langfuse: bool = False):
         
         query_count += 1
         logger.info(f"Processing interactive query #{query_count}: {query}")
-        print("Conducting deep research... (this may take a few minutes for thorough analysis)")
+        print("Conducting deep research... (this may take several minutes for thorough analysis and multiple search iterations)")
         try:
             response = await run_agent(query)
             logger.info(f"Successfully completed interactive query #{query_count}")
