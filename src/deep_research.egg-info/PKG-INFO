@@ -7,8 +7,17 @@ Author-email: your.email@example.com
 Requires-Python: >=3.8
 Requires-Dist: openai>=1.12.0
 Requires-Dist: openai-agents>=0.0.14
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: beautifulsoup4>=4.12.0
+Requires-Dist: aiohttp>=3.8.0
+Requires-Dist: tqdm>=4.65.0
+Provides-Extra: dev
+Requires-Dist: pytest==7.4.*; extra == "dev"
+Requires-Dist: pytest-mock==3.11.*; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
 Dynamic: author
 Dynamic: author-email
+Dynamic: provides-extra
 Dynamic: requires-dist
 Dynamic: requires-python
 Dynamic: summary

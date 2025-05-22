@@ -6,9 +6,10 @@ This script extends the basic ReAct search example by:
 1. Creating a search agent that follows the ReAct pattern
 2. Implementing chain-of-thought reasoning between search actions
 3. Setting up tools for web search functionality
-4. Adding a research topics generator that suggests related topics for broader research
-5. Processing and displaying comprehensive research results with reasoning traces and suggested topics
-6. Optionally enabling Langfuse tracing for observability
+4. Adding a research topics generator that is available through agent handoff
+5. Enabling bi-directional handoffs between agents to continue exploration of topics
+6. Processing and displaying comprehensive research results with reasoning traces
+7. Optionally enabling Langfuse tracing for observability
 
 Usage:
     python react_search_with_research_topics.py "What are the latest advancements in quantum computing?"
@@ -70,44 +71,42 @@ def setup_logging(log_level=logging.INFO, log_file=None):
 # Module logger
 logger = logging.getLogger(__name__)
 
-# Import the agents
+# Import the react search agent (which now includes handoff to research topics agent)
 from deep_research.agents.react_search_agent import load_react_search_agent
 from deep_research.agents.research_topics_agent import load_research_topics_agent
 
-async def run_query_with_topics(query: str, enable_langfuse: bool = False):
-    """Run a single query through the ReAct search agent and then generate research topics."""
-    logger.info(f"Processing query with research topics: {query}")
+async def run_query_with_bidirectional_handoff(query: str, enable_langfuse: bool = False):
+    """Run a single query through the ReAct search agent with bi-directional handoffs."""
+    logger.info(f"Processing query with bi-directional handoffs: {query}")
     
     # Load environment variables (including API keys)
     log_env_files = load_dotenv_files()
     if log_env_files:
         logger.info(f"Loaded environment from: {', '.join(log_env_files)}")
     
-    # Load the ReAct search agent with optional Langfuse tracing
-    logger.debug(f"Loading ReAct search agent (Langfuse tracing: {'enabled' if enable_langfuse else 'disabled'})")
-    _, run_search_agent = load_react_search_agent(enable_langfuse=enable_langfuse)
+    # First, set up research topics agent with search handoff capability
+    logger.debug("Setting up research topics agent with search handoff")
+    research_topics_agent, _ = load_research_topics_agent(
+        enable_langfuse=enable_langfuse,
+        with_search_handoff=True
+    )
     
-    # Load the research topics agent
-    logger.debug("Loading research topics agent")
-    _, run_topics_agent = load_research_topics_agent(enable_langfuse=enable_langfuse)
+    # Then, set up the ReAct search agent with research topics handoff
+    logger.debug("Setting up ReAct search agent with research topics handoff")
+    _, run_search_agent = load_react_search_agent(
+        enable_langfuse=enable_langfuse,
+        with_research_topics_handoff=True
+    )
     
-    # Run the search query
-    logger.info("Sending query to search agent")
-    search_results = await run_search_agent(query)
-    logger.info("Search query completed successfully")
+    # Run the search query with handoff capability
+    logger.info("Sending query to search agent with handoff capability")
+    results = await run_search_agent(query)
+    logger.info("Query completed successfully")
     
-    # Generate research topics based on search results
-    logger.info("Generating research topics")
-    topics = await run_topics_agent(query, search_results)
-    logger.info("Research topics generated successfully")
-    
-    # Combine the results
-    combined_results = f"{search_results}\n\n## Related Research Topics:\n\n{topics}"
-    
-    return combined_results
+    return results
 
 async def interactive_mode(enable_langfuse: bool = False):
-    """Run the ReAct search agent with topics generation in interactive mode."""
+    """Run the ReAct search agent with bi-directional handoffs in interactive mode."""
     logger.info(f"Starting interactive mode (Langfuse tracing: {'enabled' if enable_langfuse else 'disabled'})")
     
     # Load environment variables (including API keys)
@@ -115,15 +114,22 @@ async def interactive_mode(enable_langfuse: bool = False):
     if log_env_files:
         logger.info(f"Loaded environment from: {', '.join(log_env_files)}")
     
-    # Load the ReAct search agent (only once for the session) with optional Langfuse tracing
-    logger.debug("Loading ReAct search agent for interactive session")
-    _, run_search_agent = load_react_search_agent(enable_langfuse=enable_langfuse)
+    # Set up the research topics agent with search handoff
+    logger.debug("Setting up research topics agent with search handoff")
+    research_topics_agent, _ = load_research_topics_agent(
+        enable_langfuse=enable_langfuse,
+        with_search_handoff=True
+    )
     
-    # Load the research topics agent
-    logger.debug("Loading research topics agent for interactive session")
-    _, run_topics_agent = load_research_topics_agent(enable_langfuse=enable_langfuse)
+    # Set up the ReAct search agent with research topics handoff
+    logger.debug("Setting up ReAct search agent with bi-directional handoffs")
+    _, run_search_agent = load_react_search_agent(
+        enable_langfuse=enable_langfuse,
+        with_research_topics_handoff=True
+    )
     
-    print("ReAct Search Agent with Research Topics Generator (type 'exit' to quit)")
+    print("ReAct Search Agent with Bi-directional Handoffs (type 'exit' to quit)")
+    print("This agent can search for information, suggest related topics, and search those topics")
     
     query_count = 0
     while True:
@@ -134,21 +140,14 @@ async def interactive_mode(enable_langfuse: bool = False):
         
         query_count += 1
         logger.info(f"Processing interactive query #{query_count}: {query}")
-        print("Running ReAct search with chain-of-thought reasoning and topics generation...")
+        print("Running ReAct search with chain-of-thought reasoning and bi-directional handoffs...")
         try:
-            # Run search
-            search_results = await run_search_agent(query)
-            logger.info(f"Successfully completed search for query #{query_count}")
-            
-            # Generate topics
-            topics = await run_topics_agent(query, search_results)
-            logger.info(f"Successfully generated topics for query #{query_count}")
-            
-            # Combine results
-            combined_results = f"{search_results}\n\n## Related Research Topics:\n\n{topics}"
+            # Run search with handoff capability
+            results = await run_search_agent(query)
+            logger.info(f"Successfully completed query #{query_count}")
             
             print("\nAgent response:")
-            print(combined_results)
+            print(results)
         except Exception as e:
             logger.error(f"Error processing query #{query_count}: {str(e)}")
             print(f"Error occurred: {e}")
@@ -157,7 +156,7 @@ async def interactive_mode(enable_langfuse: bool = False):
 
 async def main_async():
     # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="Run ReAct search agent with research topics generation")
+    parser = argparse.ArgumentParser(description="Run ReAct search agent with bi-directional handoffs")
     parser.add_argument("query", nargs="?", help="The query to research")
     parser.add_argument("--interactive", "-i", action="store_true", help="Run in interactive mode")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO", 
@@ -176,7 +175,7 @@ async def main_async():
         log_file = f"logs/react_search_topics_{timestamp}.log"
     
     logger = setup_logging(log_level=log_level, log_file=log_file)
-    logger.info(f"Starting ReAct search with topics example with log level: {args.log_level}")
+    logger.info(f"Starting ReAct search with bi-directional handoffs example with log level: {args.log_level}")
     
     if args.enable_langfuse:
         logger.info("Langfuse tracing is enabled")
@@ -185,13 +184,13 @@ async def main_async():
         await interactive_mode(enable_langfuse=args.enable_langfuse)
     elif args.query:
         logger.info(f"Running in single query mode")
-        result = await run_query_with_topics(args.query, enable_langfuse=args.enable_langfuse)
+        result = await run_query_with_bidirectional_handoff(args.query, enable_langfuse=args.enable_langfuse)
         print(result)
     else:
         logger.warning("No query provided and not in interactive mode")
         parser.print_help()
     
-    logger.info("ReAct search with topics example completed")
+    logger.info("ReAct search with bi-directional handoffs example completed")
 
 def main():
     """
