@@ -8,10 +8,12 @@ This script shows how to:
 3. Process inputs through a chain of tools
 4. Implement both single-query and interactive modes
 5. Utilize WebSearchTool for real web searches
+6. Provide a chat interface for asking questions
 
 Usage:
     python examples/search_v2_example.py "Your input here"
     python examples/search_v2_example.py --interactive
+    python examples/search_v2_example.py --chat
     python examples/search_v2_example.py "Process this text" --model "gpt-4o"
 """
 
@@ -160,9 +162,9 @@ def load_sequential_agent(
 
         For each input, follow these steps:
 
-        1. FIRST STEP: Use web_search_tool with the original input to search the internet for real-time information.
+        1. FIRST STEP: If this is the first message use web_search_tool with the original input to search the internet for real-time information.
 
-        2. SECOND STEP: Brainstorm a search query based on the output from previous step.
+        2. SECOND STEP: Brainstorm the next unique search query based on the output from previous steps. This search query should be different from the previous search queries. Result should augment the previous results.
 
         3. THIRD STEP: Use web_search_tool with the search query from previous step to search the internet for real-time information.
 
@@ -285,13 +287,90 @@ async def interactive_mode(model: str = "gpt-4.1", temperature: float = 0.2):
             logger.error(f"Error processing input #{query_count}: {str(e)}")
             print(f"Error occurred: {e}")
 
-    logger.info(f"Interactive session ended after {query_count} inputs")
+    logger.info(f"Interactive session ended after {query_count} queries")
+
+async def chat_mode(model: str = "gpt-4.1", temperature: float = 0.2):
+    """
+    Run the search agent in chat mode, providing a conversational interface.
+
+    This creates a simple chat-like experience where the user can ask questions
+    and receive direct responses from the agent without seeing the processing details.
+    The conversation history is maintained to provide context between messages.
+    """
+    logger.info(f"Starting chat mode with model: {model}")
+
+    # Load environment variables (including API keys)
+    log_env_files = load_dotenv_files()
+    if log_env_files:
+        logger.info(f"Loaded environment from: {', '.join(log_env_files)}")
+
+    # Import Runner here to ensure it's available
+    try:
+        from agents import Runner
+    except ImportError:
+        logger.error("Agents SDK not installed. Please ensure it's available in your environment.")
+        sys.exit(1)
+
+    # Load the agent directly (not the run_agent function)
+    logger.debug("Initializing search agent for chat session")
+    agent, _ = load_sequential_agent(model=model, temperature=temperature)
+
+    print("\n================================")
+    print("💬 Search Agent Chat")
+    print("================================")
+    print("Ask any question and get answers with real-time web search.")
+    print("Type 'exit' or 'quit' to end the chat.")
+    print("================================\n")
+
+    message_count = 0
+    conversation_history = None
+
+    while True:
+        user_input = input("You: ")
+        if user_input.lower() in ['exit', 'quit', 'bye', 'goodbye']:
+            print("\nChat session ended. Goodbye!")
+            logger.info("User ended chat session")
+            break
+
+        if not user_input.strip():
+            print("Please enter a question or type 'exit' to quit.")
+            continue
+
+        message_count += 1
+        logger.info(f"Processing chat message #{message_count}: {user_input}")
+
+        print("\nSearching for information...")
+        try:
+            # For the first message, start a new conversation
+            if conversation_history is None:
+                result = await Runner.run(agent, user_input, max_turns=20)
+            else:
+                # For subsequent messages, append to the conversation history
+                new_input = conversation_history + [{"role": "user", "content": user_input}]
+                result = await Runner.run(agent, new_input, max_turns=20)
+
+            # Store conversation history for next turn
+            conversation_history = result.to_input_list()
+
+            logger.info(f"Successfully generated response for message #{message_count}")
+
+            # Display only the final output
+            print("\nAssistant:")
+            print(result.final_output)
+            print("\n--------------------------------")
+
+        except Exception as e:
+            logger.error(f"Error processing message #{message_count}: {str(e)}")
+            print(f"Sorry, I encountered an error: {e}")
+
+    logger.info(f"Chat session ended after {message_count} messages")
 
 async def main_async():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Run an agent with sequential tools")
     parser.add_argument("input", nargs="?", help="The input to process")
     parser.add_argument("--interactive", "-i", action="store_true", help="Run in interactive mode")
+    parser.add_argument("--chat", "-c", action="store_true", help="Run in chat mode with a conversational interface")
     parser.add_argument("--model", default="gpt-4.1", help="Model to use (default: gpt-4.1)")
     parser.add_argument("--temperature", type=float, default=0.2, help="Temperature setting (default: 0.2)")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO",
@@ -302,15 +381,17 @@ async def main_async():
     # Setup logging
     log_level = getattr(logging, args.log_level)
     log_file = args.log_file
-    if not log_file and (args.log_level == "DEBUG" or args.interactive):
-        # Auto-create log file for debug mode or interactive sessions
+    if not log_file and (args.log_level == "DEBUG" or args.interactive or args.chat):
+        # Auto-create log file for debug mode or interactive/chat sessions
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = f"logs/sequential_tools_{timestamp}.log"
 
     logger = setup_logging(log_level=log_level, log_file=log_file)
     logger.info(f"Starting sequential tools example with model: {args.model}, temperature: {args.temperature}")
 
-    if args.interactive:
+    if args.chat:
+        await chat_mode(model=args.model, temperature=args.temperature)
+    elif args.interactive:
         await interactive_mode(model=args.model, temperature=args.temperature)
     elif args.input:
         logger.info(f"Running in single input mode")
