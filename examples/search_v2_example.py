@@ -123,7 +123,7 @@ def load_sequential_agent(
                 Include citations or sources when possible.
                 """,
                 tools=[WebSearchTool(search_context_size="high")],
-                model=model,
+                model='gpt-4.1',
                 model_settings=ModelSettings(
                     temperature=temperature,
                     max_tokens=1000,
@@ -155,6 +155,26 @@ def load_sequential_agent(
     # ──────────────────────────────────────────────────────────────────────────
     # Build the agent
     # ──────────────────────────────────────────────────────────────────────────
+    # Prepare ModelSettings arguments based on model type
+    model_settings_kwargs = {
+        "max_tokens": 1000,
+    }
+    if not (model.startswith("o3") or model.startswith("o1") or model.startswith("o4")):
+        model_settings_kwargs["temperature"] = temperature
+    
+    # Add reasoning effort for o4-mini models
+    if model.startswith("o4"):
+        model_settings_kwargs["reasoning_effort"] = "high"
+
+    # Try to create ModelSettings, remove unsupported parameters if needed
+    try:
+        model_settings = ModelSettings(**model_settings_kwargs)
+    except TypeError:
+        # Remove reasoning_effort if not supported and try again
+        if "reasoning_effort" in model_settings_kwargs:
+            model_settings_kwargs.pop("reasoning_effort")
+        model_settings = ModelSettings(**model_settings_kwargs)
+
     agent = Agent(
         name="Sequential Search Agent",
         instructions="""
@@ -172,6 +192,8 @@ def load_sequential_agent(
 
         5. FINAL STEP: Provide a comprehensive summary of all the search results to the user.
 
+        CRITICAL: Always use the results from web_search_tool in your final answer. You MUST provide a response based on the search results. If you have multiple results, synthesize them into a comprehensive response. Never return an empty response.
+
         You can use get_process_results to review all inputs and outputs if needed.
 
         Always follow this exact sequence for processing any input.
@@ -182,20 +204,19 @@ def load_sequential_agent(
         - Critically evaluate the information you find
         - Consider multiple perspectives and sources
         - Always cite sources in your final answer
+        - ALWAYS provide a final answer - never leave it empty
 
         Your final response should include:
         1. A comprehensive answer to the original query
         2. Citations for all sources used
+        3. If no relevant information is found, explicitly state that and explain what was searched
         """,
         tools=[
             web_search_tool,
             get_process_results
         ],
         model=model,
-        model_settings=ModelSettings(
-            temperature=temperature,
-            max_tokens=1000,
-        ),
+        model_settings=model_settings,
     )
 
     # ──────────────────────────────────────────────────────────────────────────
