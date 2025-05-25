@@ -145,6 +145,7 @@ def load_multi_agent_system(
         # Import Agents SDK
         from agents import Agent, Runner, ModelSettings, function_tool, handoff, WebSearchTool
         from agents import output_guardrail, GuardrailFunctionOutput
+        from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX, prompt_with_handoff_instructions
     except ImportError:
         logger.error("Agents SDK not installed. Please ensure it's available in your environment.")
         sys.exit(1)
@@ -335,6 +336,7 @@ def load_multi_agent_system(
                 - Ensure statements are directly supported by the search results
                 - Avoid extracting duplicate or very similar findings
                 - If no credible findings can be extracted, explain why
+                - Citations for all sources used
 
                 SEARCH RESULTS TO ANALYZE:
                 {search_results}
@@ -440,7 +442,7 @@ def load_multi_agent_system(
     @function_tool
     async def generate_final_content() -> str:
         """
-        Generate final research content from verified findings.
+        Generate final research content from verified findings or raw findings if verified is empty.
 
         Returns:
             JSON string of the final content
@@ -450,17 +452,38 @@ def load_multi_agent_system(
         logger.info("Generating final research content")
 
         try:
-            # Generate content based on verified findings
+            # Determine which findings to use
+            if research_context.verified_findings:
+                findings_to_use = research_context.verified_findings
+                findings_type = "verified"
+                confidence_assessment = "High confidence based on multiple verified sources and cross-validation."
+            elif research_context.findings:
+                findings_to_use = research_context.findings
+                findings_type = "raw"
+                confidence_assessment = "Medium confidence based on raw research findings without verification."
+            else:
+                # No findings at all
+                fallback_content = FinalContent(
+                    title=f"Research Report: {research_context.topic}",
+                    summary="No research findings were collected for this topic.",
+                    detailed_findings="Unable to generate research findings. Please try a different search approach.",
+                    sources=[],
+                    confidence_assessment="No confidence - no findings available.",
+                    word_count=0
+                )
+                return fallback_content.model_dump_json()
+
+            # Generate content based on available findings
             title = f"Research Report: {research_context.topic}"
 
             summary = f"This report presents comprehensive research on {research_context.topic}. "
-            summary += f"Based on {len(research_context.verified_findings)} verified findings, "
+            summary += f"Based on {len(findings_to_use)} {findings_type} findings, "
             summary += f"the research indicates significant developments and opportunities in this area."
 
-            detailed_findings = "## Detailed Research Findings\n\n"
+            detailed_findings = f"## Detailed Research Findings ({findings_type.title()})\n\n"
             sources = []
 
-            for i, finding in enumerate(research_context.verified_findings, 1):
+            for i, finding in enumerate(findings_to_use, 1):
                 detailed_findings += f"{i}. **{finding.category.title()} Finding**\n"
                 detailed_findings += f"   {finding.statement}\n"
                 detailed_findings += f"   Credibility Score: {finding.credibility_score}\n"
@@ -470,7 +493,6 @@ def load_multi_agent_system(
             # Remove duplicates from sources
             sources = list(set(sources))
 
-            confidence_assessment = "High confidence based on multiple verified sources and cross-validation."
             word_count = len(detailed_findings.split())
 
             final_content = FinalContent(
@@ -482,7 +504,7 @@ def load_multi_agent_system(
                 word_count=word_count
             )
 
-            logger.info("Final content generation completed")
+            logger.info(f"Final content generation completed using {findings_type} findings")
             return final_content.model_dump_json()
 
         except Exception as e:
@@ -523,7 +545,7 @@ def load_multi_agent_system(
         name="researcher_agent",
         model=model,
         model_settings=model_settings,
-        instructions="""You are a thorough research agent specializing in gathering information from multiple sources.
+        instructions=prompt_with_handoff_instructions("""You are a thorough research agent specializing in gathering information from multiple sources.
 
 Your responsibilities:
 1. Execute comprehensive web searches on the given topic
@@ -539,7 +561,8 @@ Guidelines:
 - Always use the extract_findings tool after each search to structure the data
 - Keep searches focused and avoid overly broad queries
 
-When you receive a research topic, immediately begin with web searches and continue until you have gathered sufficient information from multiple angles.""",
+When you receive a research topic, immediately begin with web searches and continue until you have gathered sufficient information from multiple angles.
+You can handoff to writer_agent if you have sufficient findings to create a report."""),
         tools=[web_search, extract_findings]
     )
 
@@ -548,7 +571,9 @@ When you receive a research topic, immediately begin with web searches and conti
         name="fact_checker_agent",
         model=model,
         model_settings=model_settings,
-        instructions="""You are a meticulous fact-checking agent responsible for verifying research findings.
+        instructions=f"""{RECOMMENDED_PROMPT_PREFIX}
+
+You are a meticulous fact-checking agent responsible for verifying research findings.
 
 Your responsibilities:
 1. Review all research findings in the shared context
@@ -580,10 +605,12 @@ Focus on creating high-confidence, well-sourced findings efficiently.""",
         name="writer_agent",
         model=model,
         model_settings=model_settings,
-        instructions="""You are a professional research writer who creates comprehensive, well-structured reports.
+        instructions=f"""{RECOMMENDED_PROMPT_PREFIX}
+
+You are a professional research writer who creates comprehensive, well-structured reports.
 
 Your responsibilities:
-1. Review verified research findings in the shared context
+1. Review both verified research findings and raw research findings in the shared context
 2. Generate a comprehensive final report using generate_final_content
 3. Ensure proper structure with title, summary, detailed findings, and sources
 4. Maintain objectivity and factual accuracy
@@ -598,6 +625,11 @@ Writing standards:
 - Detailed findings section with full context
 - Be concise while maintaining comprehensiveness
 
+Priority for findings:
+- Use verified findings when available (highest confidence)
+- Fall back to raw research findings if no verified findings exist
+- Clearly indicate the confidence level based on which type of findings were used
+
 Always use the generate_final_content tool to create the structured output.""",
         tools=[generate_final_content]
     )
@@ -607,7 +639,7 @@ Always use the generate_final_content tool to create the structured output.""",
         name="triage_agent",
         model=model,
         model_settings=model_settings,
-        instructions="""You are the research coordinator managing the entire research workflow efficiently.
+        instructions=prompt_with_handoff_instructions("""You are the research coordinator managing the entire research workflow efficiently.
 
 Your workflow:
 1. **Research Phase**: Hand off to researcher_agent to gather comprehensive information
@@ -622,13 +654,16 @@ Coordination guidelines:
 - Be efficient and focused in coordinating the workflow
 - Avoid unnecessary back-and-forth between agents
 
-For any research query, always follow this three-phase approach and coordinate the handoffs properly.""",
+For any research query, always follow this three-phase approach and coordinate the handoffs properly."""),
         handoffs=[
             handoff(researcher_agent),
             handoff(fact_checker_agent),
             handoff(writer_agent)
         ]
     )
+
+    # Configure additional handoffs after all agents are defined
+    researcher_agent.handoffs = [handoff(writer_agent), handoff(triage_agent)]
 
     # ──────────────────────────────────────────────────────────────────────────
     # Research Runner Function
