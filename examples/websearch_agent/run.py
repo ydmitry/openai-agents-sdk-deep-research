@@ -19,18 +19,13 @@ import sys
 import os
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Callable
 
 # Add the src directory to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from deep_research.utils import load_dotenv_files
-from examples.websearch_agent.agent import (
-    make_search_agent,
-    create_json_file_collector,
-    create_text_file_collector,
-    create_memory_collector,
-)
+from examples.websearch_agent.agent import make_search_agent
 
 # Configure logging
 logging.basicConfig(
@@ -38,6 +33,119 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Collection Callback Functions
+# ──────────────────────────────────────────────────────────────────────────
+
+def create_json_file_collector(output_file: str) -> Callable[[str], None]:
+    """
+    Create a collector that appends answers to a JSON file.
+    
+    Parameters
+    ----------
+    output_file : str
+        Path to the output JSON file.
+        
+    Returns
+    -------
+    Callable
+        Collection function that writes to the specified file.
+    """
+    import json
+    
+    def collector(answer: str) -> None:
+        timestamp = datetime.now().isoformat()
+        record = {
+            "timestamp": timestamp,
+            "answer": answer
+        }
+        
+        # Ensure parent directory exists
+        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+        
+        # Load existing data or create new list
+        try:
+            if Path(output_file).exists():
+                with open(output_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            else:
+                data = []
+        except (json.JSONDecodeError, FileNotFoundError):
+            data = []
+        
+        # Append new record
+        data.append(record)
+        
+        # Write back to file
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"Collected result to {output_file}")
+    
+    return collector
+
+
+def create_text_file_collector(output_file: str) -> Callable[[str], None]:
+    """
+    Create a collector that appends answers to a text file.
+    
+    Parameters
+    ----------
+    output_file : str
+        Path to the output text file.
+        
+    Returns
+    -------
+    Callable
+        Collection function that writes to the specified file.
+    """
+    def collector(answer: str) -> None:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Ensure parent directory exists
+        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+        
+        # Append to file
+        with open(output_file, 'a', encoding='utf-8') as f:
+            f.write(f"\n{'='*80}\n")
+            f.write(f"TIMESTAMP: {timestamp}\n")
+            f.write(f"{'='*80}\n")
+            f.write(f"ANSWER:\n{answer}\n")
+            f.write(f"{'='*80}\n\n")
+        
+        logger.info(f"Collected result to {output_file}")
+    
+    return collector
+
+
+def create_memory_collector() -> tuple[Callable[[str], None], Callable[[], list[dict]]]:
+    """
+    Create a collector that stores answers in memory.
+    
+    Returns
+    -------
+    tuple
+        (collection_function, retrieval_function)
+        - collection_function: Callable that stores results
+        - retrieval_function: Callable that returns stored results
+    """
+    storage = []
+    
+    def collector(answer: str) -> None:
+        timestamp = datetime.now().isoformat()
+        record = {
+            "timestamp": timestamp,
+            "answer": answer
+        }
+        storage.append(record)
+        logger.info(f"Collected result in memory (total: {len(storage)} records)")
+    
+    def retriever() -> list[dict]:
+        return storage.copy()
+    
+    return collector, retriever
 
 
 async def run_search_query(
