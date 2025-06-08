@@ -26,6 +26,12 @@ from agents import (
     function_tool,
 )
 
+# Import helper functions
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.helpers import get_model_settings
+
 # Import the websearch agent
 import sys
 from pathlib import Path
@@ -105,21 +111,13 @@ def make_sequential_search_agent(
         Ready-to-use Agents-SDK agent instance with sequential search capabilities.
     """
 
-    # Configure model settings
-    model_settings_kwargs = {"max_tokens": 4096}
-    if not (model.startswith("o3") or model.startswith("o1") or model.startswith("o4")):
-        model_settings_kwargs["temperature"] = temperature
-
-    if model.startswith("o4"):
-        model_settings_kwargs["reasoning_effort"] = "high"
-
-    try:
-        model_settings = ModelSettings(**model_settings_kwargs)
-    except TypeError:
-        # Remove unsupported parameters if needed
-        if "reasoning_effort" in model_settings_kwargs:
-            model_settings_kwargs.pop("reasoning_effort")
-        model_settings = ModelSettings(**model_settings_kwargs)
+    # Configure model settings using helper function
+    model_settings = get_model_settings(
+        model_name=model,
+        temperature=temperature,
+        max_tokens=4096,
+        parallel_tool_calls=False
+    )
 
     # Create the websearch tool that wraps the websearch agent
     # The websearch agent will call the collect callback directly when it completes

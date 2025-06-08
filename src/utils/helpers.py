@@ -72,36 +72,41 @@ def load_dotenv_files(start_dir: Optional[str] = None, max_levels_up: int = 3) -
 
     return loaded_files
 
-def get_model_settings(model_name, temperature=0.7, max_tokens=None, parallel_tool_calls=False):
+def get_model_settings(model_name, temperature=0.2, max_tokens=4096, parallel_tool_calls=False):
     """
     Returns model settings with appropriate reasoning effort based on model type.
-    For o4-mini, applies high reasoning effort.
-    For other models like gpt-4o, uses default settings.
+    For o1, o3, and o4 model families, excludes temperature and applies reasoning effort where appropriate.
+    For other models, uses all standard parameters.
 
     Args:
         model_name: Name of the model to use
-        temperature: Temperature for model generation (ignored for o4-mini)
-        max_tokens: Maximum tokens to generate
+        temperature: Temperature for model generation (ignored for o1, o3, o4 models)
+        max_tokens: Maximum tokens to generate (default: 4096)
         parallel_tool_calls: Whether to enable parallel tool calls
 
     Returns:
         ModelSettings object configured appropriately for the model
     """
-    # Create different settings objects based on model type
-    if model_name == "o4-mini" or model_name == "o3":
-        # o4-mini doesn't support temperature parameter
-        settings = ModelSettings(
-            max_tokens=max_tokens,
-            parallel_tool_calls=parallel_tool_calls
-        )
-        # Apply high reasoning effort
-        settings.reasoning_effort = "high"
-    else:
-        # For other models like gpt-4o, use all parameters
-        settings = ModelSettings(
-            temperature=temperature,
-            max_tokens=max_tokens,
-            parallel_tool_calls=parallel_tool_calls
-        )
+    # Configure model settings based on model type
+    model_settings_kwargs = {
+        "max_tokens": max_tokens,
+        "parallel_tool_calls": parallel_tool_calls
+    }
+    
+    # Add temperature for models that support it
+    if not (model_name.startswith("o3") or model_name.startswith("o1") or model_name.startswith("o4")):
+        model_settings_kwargs["temperature"] = temperature
 
-    return settings 
+    # Add reasoning effort for o4 models
+    if model_name.startswith("o4"):
+        model_settings_kwargs["reasoning_effort"] = "high"
+
+    try:
+        model_settings = ModelSettings(**model_settings_kwargs)
+    except TypeError:
+        # Remove unsupported parameters if needed (e.g., reasoning_effort for older SDK versions)
+        if "reasoning_effort" in model_settings_kwargs:
+            model_settings_kwargs.pop("reasoning_effort")
+        model_settings = ModelSettings(**model_settings_kwargs)
+
+    return model_settings 
