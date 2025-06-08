@@ -41,7 +41,7 @@ from websearch_agent.agent import make_search_agent
 logger = logging.getLogger(__name__)
 
 
-def create_websearch_tool(collect_callback: ABCCallable[[str], None], model: str = "gpt-4.1", temperature: float = 0.2):
+def create_websearch_tool(collect_callback: ABCCallable[[str], None], model: str = "gpt-4.1-mini", temperature: float = 0.2):
     """
     Create a websearch function tool that wraps the websearch agent.
     """
@@ -90,7 +90,7 @@ def create_websearch_tool(collect_callback: ABCCallable[[str], None], model: str
 def make_sequential_search_agent(
     collect: ABCCallable[[str], None],
     *,
-    model: str = "gpt-4.1",
+    model: str = "gpt-4.1-mini",
     temperature: float = 0.2,
 ) -> Agent[Any]:
     """

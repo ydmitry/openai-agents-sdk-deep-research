@@ -150,7 +150,7 @@ positional arguments:
 optional arguments:
   --output, -o          Output file to save research results
   --format, -f          Output file format (default: json)
-  --model, -m           Model to use (default: gpt-4.1)
+  --model, -m           Model to use (default: gpt-4.1-mini)
   --temperature, -t     Temperature setting (default: 0.2)
   --log-level           Set logging level (default: INFO)
 ```

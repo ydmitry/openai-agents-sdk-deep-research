@@ -7,10 +7,10 @@ The agent performs web searches and forwards results to a user-supplied callback
 
 Usage:
     from websearch_agent.agent import make_search_agent
-    
+
     def my_collector(answer: str):
         print(f"Answer: {answer}\n")
-    
+
     agent = make_search_agent(my_collector)
 """
 
@@ -37,10 +37,10 @@ logger = logging.getLogger(__name__)
 
 class SearchCollectionHooks(AgentHooks[Any]):
     """Lifecycle hooks that automatically collect results when the agent completes."""
-    
+
     def __init__(self, collect_callback: ABCCallable[[str], None]):
         self.collect_callback = collect_callback
-    
+
     async def on_start(
         self,
         context: RunContextWrapper[Any],
@@ -55,7 +55,7 @@ class SearchCollectionHooks(AgentHooks[Any]):
             pass
         except Exception as e:
             logger.debug(f"Could not extract query in on_start: {str(e)}")
-    
+
     async def on_end(
         self,
         context: RunContextWrapper[Any],
@@ -65,11 +65,11 @@ class SearchCollectionHooks(AgentHooks[Any]):
         """Called when the agent produces a final output - automatically collect the result."""
         try:
             answer = str(output) if output else ""
-            
+
             # Call the collection callback with just the answer
             self.collect_callback(answer)
             logger.info(f"Automatically collected result (answer length: {len(answer)} chars)")
-            
+
         except Exception as e:
             # Log errors but don't interrupt the agent's response
             logger.error(f"Error in collection hook: {str(e)}")
@@ -78,12 +78,12 @@ class SearchCollectionHooks(AgentHooks[Any]):
 def make_search_agent(
     collect: ABCCallable[[str], None],
     *,
-    model: str = "gpt-4.1",
+    model: str = "gpt-4.1-mini",
     temperature: float = 0.2,
 ) -> Agent[Any]:
     """
     Create a search agent that automatically collects answers via lifecycle hooks.
-    
+
     Parameters
     ----------
     collect : (answer:str) -> None
@@ -92,7 +92,7 @@ def make_search_agent(
         LLM model to use for the agent.
     temperature : float
         Temperature setting for the LLM.
-        
+
     Returns
     -------
     Agent[Any]
@@ -125,4 +125,4 @@ def make_search_agent(
         model=model,
         model_settings=model_settings,
         hooks=collection_hooks,  # Attach the collection hooks
-    ) 
+    )
