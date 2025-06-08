@@ -37,22 +37,22 @@ The sequential agent acts as a pure orchestrator without hooks. Each websearch a
 
 ```bash
 # Complex research query
-python examples/sequential_search_agent/run.py "Compare renewable energy vs fossil fuels in 2024"
+python src/sequential_search_agent/run.py "Compare renewable energy vs fossil fuels in 2024"
 
 # Save comprehensive analysis to JSON
-python examples/sequential_search_agent/run.py "History and future of artificial intelligence" --output ai_research.json
+python src/sequential_search_agent/run.py "History and future of artificial intelligence" --output ai_research.json
 
 # Multi-perspective analysis
-python examples/sequential_search_agent/run.py "Pros and cons of remote work" --format text --output remote_work_analysis.txt
+python src/sequential_search_agent/run.py "Pros and cons of remote work" --format text --output remote_work_analysis.txt
 
 # Market research with specific model
-python examples/sequential_search_agent/run.py "Electric vehicle market trends and projections" --model gpt-4o --temperature 0.1
+python src/sequential_search_agent/run.py "Electric vehicle market trends and projections" --model gpt-4o --temperature 0.1
 ```
 
 ### Programmatic Usage
 
 ```python
-from examples.sequential_search_agent.agent import make_sequential_search_agent
+from src.sequential_search_agent.agent import make_sequential_search_agent
 from agents import Runner
 
 # Create a collector
@@ -118,21 +118,21 @@ Uses the same collection system as websearch_agent:
 
 ### JSON File Collection
 ```python
-from examples.sequential_search_agent.run import create_json_file_collector
+from src.sequential_search_agent.run import create_json_file_collector
 
 collector = create_json_file_collector("research_results.json")
 ```
 
 ### Text File Collection
 ```python
-from examples.sequential_search_agent.run import create_text_file_collector
+from src.sequential_search_agent.run import create_text_file_collector
 
 collector = create_text_file_collector("research_log.txt")
 ```
 
 ### Memory Collection
 ```python
-from examples.sequential_search_agent.run import create_memory_collector
+from src.sequential_search_agent.run import create_memory_collector
 
 collector, retriever = create_memory_collector()
 ```
@@ -159,28 +159,28 @@ optional arguments:
 
 ### Energy Research
 ```bash
-python examples/sequential_search_agent/run.py \
+python src/sequential_search_agent/run.py \
     "Compare the cost, efficiency, and environmental impact of solar, wind, and nuclear energy in 2024" \
     --output energy_comparison.json
 ```
 
 ### Technology Analysis
 ```bash
-python examples/sequential_search_agent/run.py \
+python src/sequential_search_agent/run.py \
     "Evolution of machine learning from 2020 to 2024: key developments and future trends" \
     --format text --output ml_evolution.txt
 ```
 
 ### Market Research
 ```bash
-python examples/sequential_search_agent/run.py \
+python src/sequential_search_agent/run.py \
     "Cryptocurrency market analysis: current state, regulations, and institutional adoption" \
     --model gpt-4o --temperature 0.1
 ```
 
 ### Policy Analysis
 ```bash
-python examples/sequential_search_agent/run.py \
+python src/sequential_search_agent/run.py \
     "Impact of remote work policies on productivity, employee satisfaction, and company culture" \
     --log-level DEBUG --output remote_work_study.json
 ```
@@ -197,7 +197,7 @@ The sequential search agent enhances the websearch agent by:
 ## File Structure
 
 ```
-examples/sequential_search_agent/
+src/sequential_search_agent/
 ├── __init__.py          # Package initialization
 ├── agent.py             # Sequential agent factory and WebSearchAgentTool
 ├── run.py               # Command-line runner script

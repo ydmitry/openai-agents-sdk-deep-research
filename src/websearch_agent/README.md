@@ -16,22 +16,22 @@ A standalone web search agent with collection capabilities built on the OpenAI A
 
 ```bash
 # Basic search
-python examples/websearch_agent/run.py "Ukraine exports 2024"
+python src/websearch_agent/run.py "Ukraine exports 2024"
 
 # Save results to JSON file
-python examples/websearch_agent/run.py "AI developments" --output results.json
+python src/websearch_agent/run.py "AI developments" --output results.json
 
 # Save results to text file
-python examples/websearch_agent/run.py "Market trends" --format text --output search_log.txt
+python src/websearch_agent/run.py "Market trends" --format text --output search_log.txt
 
 # Use different model and temperature
-python examples/websearch_agent/run.py "Technology news" --model gpt-4o --temperature 0.3
+python src/websearch_agent/run.py "Technology news" --model gpt-4o --temperature 0.3
 ```
 
 ### Programmatic Usage
 
 ```python
-from examples.websearch_agent.agent import make_search_agent, create_json_file_collector
+from src.websearch_agent.agent import make_search_agent, create_json_file_collector
 from agents import Runner
 
 # Create a collector that saves to JSON file
@@ -69,7 +69,7 @@ A command-line interface that:
 ### JSON File Collection
 
 ```python
-from examples.websearch_agent.agent import create_json_file_collector
+from src.websearch_agent.agent import create_json_file_collector
 
 collector = create_json_file_collector("results.json")
 # Creates/appends to a JSON file with timestamped records
@@ -78,7 +78,7 @@ collector = create_json_file_collector("results.json")
 ### Text File Collection
 
 ```python
-from examples.websearch_agent.agent import create_text_file_collector
+from src.websearch_agent.agent import create_text_file_collector
 
 collector = create_text_file_collector("search_log.txt")
 # Appends human-readable entries to a text file
@@ -87,7 +87,7 @@ collector = create_text_file_collector("search_log.txt")
 ### Memory Collection
 
 ```python
-from examples.websearch_agent.agent import create_memory_collector
+from src.websearch_agent.agent import create_memory_collector
 
 collector, retriever = create_memory_collector()
 # Stores results in memory, provides retrieval function
@@ -130,13 +130,13 @@ optional arguments:
 ### Basic Search
 
 ```bash
-python examples/websearch_agent/run.py "What are the main exports of Ukraine in 2024?"
+python src/websearch_agent/run.py "What are the main exports of Ukraine in 2024?"
 ```
 
 ### Research with File Output
 
 ```bash
-python examples/websearch_agent/run.py "Latest developments in quantum computing" \
+python src/websearch_agent/run.py "Latest developments in quantum computing" \
     --output quantum_research.json \
     --model gpt-4o \
     --temperature 0.1
@@ -145,7 +145,7 @@ python examples/websearch_agent/run.py "Latest developments in quantum computing
 ### Debug Mode with Logging
 
 ```bash
-python examples/websearch_agent/run.py "AI regulation updates" \
+python src/websearch_agent/run.py "AI regulation updates" \
     --log-level DEBUG \
     --log-file search_debug.log
 ```
@@ -185,7 +185,7 @@ from pathlib import Path
 # Add to path if needed
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from examples.websearch_agent.agent import make_search_agent
+from src.websearch_agent.agent import make_search_agent
 from agents import Runner
 
 # Your application code
@@ -206,7 +206,7 @@ result = await Runner.run(agent, "Your search query")
 ## File Structure
 
 ```
-examples/websearch_agent/
+src/websearch_agent/
 ├── __init__.py          # Package initialization
 ├── agent.py             # Agent factory and collection methods
 ├── run.py               # Command-line runner script

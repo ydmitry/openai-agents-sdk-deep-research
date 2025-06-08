@@ -24,8 +24,8 @@ from typing import Optional, Callable
 # Add the src directory to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from deep_research.utils import load_dotenv_files
-from examples.websearch_agent.agent import make_search_agent
+from src.utils.helpers import load_dotenv_files
+from src.websearch_agent.agent import make_search_agent
 
 # Configure logging
 logging.basicConfig(
