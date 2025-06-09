@@ -172,7 +172,8 @@ async def run_clarification_analysis(
     output_format: str = "json",
     model: str = "gpt-4.1-mini",
     temperature: float = 0.3,
-    log_level: str = "INFO"
+    log_level: str = "INFO",
+    enable_handoff: bool = False
 ) -> str:
     """
     Analyze a user request and generate clarification questions.
@@ -208,8 +209,8 @@ async def run_clarification_analysis(
         logger.info("Using console collector (questions will be displayed)")
 
     # Create the clarification agent
-    logger.info(f"Creating clarification agent with model: {model}")
-    agent = make_clarification_agent(collector, model=model, temperature=temperature)
+    logger.info(f"Creating clarification agent with model: {model}, handoff: {enable_handoff}")
+    agent = make_clarification_agent(collector, model=model, temperature=temperature, enable_handoff=enable_handoff)
 
     # Run the agent
     logger.info(f"Analyzing user request: {user_request}")
@@ -226,15 +227,16 @@ async def run_clarification_analysis(
         raise
 
 
-async def chat_mode(model: str = "gpt-4.1-mini", temperature: float = 0.3):
+async def chat_mode(model: str = "gpt-4.1-mini", temperature: float = 0.3, enable_handoff: bool = True):
     """
     Run the clarification agent in chat mode, providing a conversational interface.
 
     This creates a simple chat-like experience where the user can describe requests
     and receive clarification questions to help refine their requirements.
+    With handoff enabled, the agent can automatically transition to search mode.
     The conversation history is maintained to provide context between messages.
     """
-    logger.info(f"Starting clarification chat mode with model: {model}")
+    logger.info(f"Starting clarification chat mode with model: {model}, handoff: {enable_handoff}")
 
     # Load environment variables (including API keys)
     log_env_files = load_dotenv_files()
@@ -248,19 +250,28 @@ async def chat_mode(model: str = "gpt-4.1-mini", temperature: float = 0.3):
         logger.error("Agents SDK not installed. Please ensure it's available in your environment.")
         sys.exit(1)
 
-    # Create a simple collector for chat mode that just returns the result
-    chat_collector, retriever = create_memory_collector()
+    # Create a console collector for chat mode
+    chat_collector = create_console_collector()
 
-    # Initialize clarification agent for chat session
-    logger.debug("Initializing clarification agent for chat session")
-    agent = make_clarification_agent(chat_collector, model=model, temperature=temperature)
+    # Initialize clarification agent for chat session with optional handoff
+    logger.debug(f"Initializing clarification agent for chat session (handoff: {enable_handoff})")
+    agent = make_clarification_agent(chat_collector, model=model, temperature=temperature, enable_handoff=enable_handoff)
 
-    print("\n================================")
-    print("❓ Clarification Agent Chat")
-    print("================================")
-    print("Describe what you want to build or accomplish, and I'll ask clarifying questions.")
-    print("Type 'exit' or 'quit' to end the chat.")
-    print("================================\n")
+    # Display appropriate header based on handoff capability
+    if enable_handoff:
+        print("\n================================")
+        print("❓🔍 Clarification → Search Chat")
+        print("================================")
+        print("Describe your request. I'll ask questions to clarify, then search for comprehensive answers.")
+        print("Type 'exit' or 'quit' to end the chat.")
+        print("================================\n")
+    else:
+        print("\n================================")
+        print("❓ Clarification Agent Chat")
+        print("================================")
+        print("Describe what you want to build or accomplish, and I'll ask clarifying questions.")
+        print("Type 'exit' or 'quit' to end the chat.")
+        print("================================\n")
 
     message_count = 0
     conversation_history = None
@@ -279,25 +290,29 @@ async def chat_mode(model: str = "gpt-4.1-mini", temperature: float = 0.3):
         message_count += 1
         logger.info(f"Processing chat message #{message_count}: {user_input}")
 
-        print("\nAnalyzing your request for clarification...")
+        # Show appropriate processing message
+        if enable_handoff:
+            print("\nProcessing (clarification → search if ready)...")
+        else:
+            print("\nAnalyzing your request for clarification...")
+        
         try:
             # For the first message, start a new conversation
             if conversation_history is None:
-                result = await Runner.run(agent, user_input, max_turns=5)
+                result = await Runner.run(agent, user_input, max_turns=20)
             else:
                 # For subsequent messages, append to the conversation history
                 new_input = conversation_history + [{"role": "user", "content": user_input}]
-                result = await Runner.run(agent, new_input, max_turns=5)
+                result = await Runner.run(agent, new_input, max_turns=20)
 
             # Store conversation history for next turn
             conversation_history = result.to_input_list()
 
-            logger.info(f"Successfully generated clarification questions for message #{message_count}")
+            logger.info(f"Successfully processed message #{message_count}")
 
-            # Display only the final output
-            print("\nClarification Questions:")
-            print(result.final_output)
-            print("\n--------------------------------")
+            # Display the result (could be clarification questions or search results)
+            print(f"\nAssistant: {result.final_output}")
+            print("\n" + "-"*50)
 
         except Exception as e:
             logger.error(f"Error processing message #{message_count}: {str(e)}")
@@ -364,15 +379,32 @@ Examples:
         default="INFO",
         help="Logging level (default: INFO)"
     )
+    
+    parser.add_argument(
+        "--enable-handoff",
+        action="store_true",
+        default=True,
+        help="Enable handoff to sequential search agent (default: True)"
+    )
+    
+    parser.add_argument(
+        "--disable-handoff",
+        action="store_true",
+        help="Disable handoff to sequential search agent"
+    )
 
     args = parser.parse_args()
+
+    # Determine handoff setting
+    enable_handoff = args.enable_handoff and not args.disable_handoff
 
     # Check if chat mode is requested
     if args.chat:
         try:
             asyncio.run(chat_mode(
                 model=args.model,
-                temperature=args.temperature
+                temperature=args.temperature,
+                enable_handoff=enable_handoff
             ))
         except KeyboardInterrupt:
             logger.info("Chat session interrupted by user")
@@ -393,7 +425,8 @@ Examples:
                 args.format,
                 args.model,
                 args.temperature,
-                args.log_level
+                args.log_level,
+                enable_handoff
             ))
         except KeyboardInterrupt:
             logger.info("Clarification analysis interrupted by user")

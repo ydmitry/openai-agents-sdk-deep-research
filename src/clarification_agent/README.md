@@ -9,6 +9,7 @@ A standalone agent that analyzes user requests and generates clarification quest
 - **Multiple Collection Methods**: Console output, file storage (JSON/text), or memory collection
 - **Configurable Models**: Support for different LLM models and temperature settings
 - **Integration Ready**: Designed to work with other agents in a pipeline
+- **🆕 Automatic Handoff**: Can seamlessly handoff to sequential search agent when clarification is complete
 
 ## Quick Start
 
@@ -29,6 +30,12 @@ agent = make_clarification_agent(handle_questions)
 # Basic analysis with console output
 python src/clarification_agent/run.py "Build me a web app"
 
+# Chat mode with handoff to search (default)
+python src/clarification_agent/run.py --chat
+
+# Chat mode without handoff (clarification only)
+python src/clarification_agent/run.py --chat --disable-handoff
+
 # Save to JSON file
 python src/clarification_agent/run.py "Create ML model" --output questions.json
 
@@ -41,14 +48,15 @@ python src/clarification_agent/run.py "Develop mobile app" --model gpt-4o --temp
 
 ## API Reference
 
-### `make_clarification_agent(collect, *, model="gpt-4.1-mini", temperature=0.3)`
+### `make_clarification_agent(collect, *, model="gpt-4.1-mini", temperature=0.3, enable_handoff=False)`
 
 Creates a clarification agent instance.
 
 **Parameters:**
-- `collect`: Callback function that receives the clarification questions string
+- `collect`: Callback function that receives the clarification questions or search results
 - `model`: LLM model to use (default: "gpt-4.1-mini")
 - `temperature`: Temperature setting for the LLM (default: 0.3)
+- `enable_handoff`: Whether to enable automatic handoff to sequential search agent (default: False)
 
 **Returns:**
 - Configured Agent instance ready for use
@@ -70,6 +78,7 @@ Async function to analyze a user request and generate clarification questions.
 
 ## Example Output
 
+### Clarification Mode
 **Input:** `"Build me a web app"`
 
 **Output:**
@@ -85,14 +94,13 @@ Async function to analyze a user request and generate clarification questions.
 5. Do you need user accounts, authentication, or data storage? - A good answer should include: user management requirements and data handling needs.
 ```
 
-## Collection Methods
+### Handoff Mode (Chat)
+**Conversation Example:**
+```
+You: Build me a web app
+Assistant: [Clarification questions 1-5 as above]
 
-The agent supports various collection methods through callback functions:
-
-### Console Collector
-```python
-collector = create_console_collector()
-# Prints questions directly to stdout
+You: It's an e-commerce store for handmade jewelry, targeting small artisan makers aged 25-45. I need user accounts, payment processing via Stripe, inventory management, and a mobile-responsive design. Budget is $5000, timeline is 3 months. I prefer React/Node.js.
 ```
 
 ### File Collectors
