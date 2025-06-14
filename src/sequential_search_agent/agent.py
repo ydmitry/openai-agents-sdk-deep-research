@@ -73,6 +73,7 @@ def create_websearch_tool(collect_callback: ABCCallable[[str], None], model: str
             # Return the search results for the sequential agent to use
             search_result = result.final_output if result.final_output else ""
             logger.info(f"WebSearch tool completed search (result length: {len(search_result)} chars)")
+            print(f"WebSearch: {query}\n")
 
             return search_result
 
