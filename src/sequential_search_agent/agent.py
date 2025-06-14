@@ -86,6 +86,42 @@ def create_websearch_tool(storage: SearchResultsStorage, model: str = "gpt-4.1-m
     return websearch
 
 
+def create_get_citations_tool(storage: SearchResultsStorage):
+    """
+    Create a get citations function tool that extracts URLs from stored search results.
+    """
+    @function_tool
+    async def get_citations() -> str:
+        """
+        Get all unique citations (URLs) from previously stored search results.
+        Use this when users ask for sources, citations, references, or URLs from the research.
+
+        Returns:
+            A formatted list of unique URLs found in the search results
+        """
+        try:
+            logger.info("Getting citations from stored search results")
+            
+            citations = storage.get_citations()
+            
+            if not citations:
+                return "No citations found in stored search results."
+            
+            # Format citations nicely
+            formatted_citations = "\n".join([f"• {url}" for url in citations])
+            result = f"Citations from search results ({len(citations)} unique URLs):\n\n{formatted_citations}"
+            
+            logger.info(f"Retrieved {len(citations)} unique citations")
+            return result
+            
+        except Exception as e:
+            error_msg = f"Error retrieving citations: {str(e)}"
+            logger.error(error_msg)
+            return f"Failed to get citations: {error_msg}"
+
+    return get_citations
+
+
 def make_sequential_search_agent(
     storage: SearchResultsStorage,
     *,
@@ -121,6 +157,9 @@ def make_sequential_search_agent(
     # Create the websearch tool that wraps the websearch agent
     # The websearch agent will store results directly when it completes
     websearch_tool = create_websearch_tool(storage, model=model, temperature=temperature)
+    
+    # Create the get citations tool
+    get_citations_tool = create_get_citations_tool(storage)
 
     return Agent[Any](
         name="Sequential Search & Research Agent",
@@ -137,16 +176,22 @@ def make_sequential_search_agent(
             "   - Follow up on interesting findings from initial searches\n"
             "4. **Synthesize Results**: Combine information from all searches into a comprehensive, well-structured answer.\n"
             "5. **Provide Context**: Include relevant context, comparisons, and analysis based on your research.\n"
-            "6. **Preserve Citations**: When sources are available from searches, include them in your final response to maintain research credibility.\n\n"
+            "6. **Preserve Citations**: When sources are available from searches, include them in your final response to maintain research credibility.\n"
+            "7. **Citations on Request**: When users ask for sources, citations, references, or URLs, use the get_citations tool to retrieve all unique URLs from the stored search results.\n\n"
 
             "Examples of multiple searches:\n"
             "- 'Compare X vs Y' → Search for X, then search for Y, then compare\n"
             "- 'Pros and cons of X' → Search for benefits, then search for drawbacks\n"
             "- 'History and current status of X' → Search for historical context, then current developments\n\n"
 
+            "Citations Usage:\n"
+            "- When users ask for 'sources', 'citations', 'references', or 'where did you find this', use get_citations\n"
+            "- The get_citations tool extracts all unique URLs from previously stored search results\n"
+            "- This is useful for providing users with a complete list of sources used in research\n\n"
+
             "Always aim to provide thorough, accurate, and well-researched answers with proper citations when available. Use multiple searches strategically to ensure comprehensive coverage."
         ),
-        tools=[websearch_tool],
+        tools=[websearch_tool, get_citations_tool],
         model=model,
         model_settings=model_settings,
     )
