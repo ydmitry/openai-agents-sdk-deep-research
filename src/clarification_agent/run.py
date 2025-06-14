@@ -21,25 +21,16 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, Callable
 
-# Additional imports for postgres collector
-try:
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
-    PSYCOPG2_AVAILABLE = True
-except ImportError:
-    PSYCOPG2_AVAILABLE = False
-
-try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-
 # Add the src directory to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.utils.helpers import load_dotenv_files
 from src.clarification_agent.agent import make_clarification_agent
+from src.storage.search_results import (
+    create_memory_storage,
+    create_textfile_storage,
+    create_postgres_storage
+)
 
 # Configure logging
 logging.basicConfig(
@@ -119,115 +110,6 @@ def create_file_display(output_file: str, format_type: str = "text") -> Callable
 # Collection Callback Functions (for storing search results only)
 # ──────────────────────────────────────────────────────────────────────────
 
-def create_json_file_collector(output_file: str) -> Callable[[str], None]:
-    """
-    Create a collector that appends search results to a JSON file.
-
-    Parameters
-    ----------
-    output_file : str
-        Path to the output JSON file.
-
-    Returns
-    -------
-    Callable
-        Collection function that writes to the specified file.
-    """
-    import json
-
-    def collector(search_results: str) -> None:
-        timestamp = datetime.now().isoformat()
-        record = {
-            "timestamp": timestamp,
-            "search_results": search_results
-        }
-
-        # Ensure parent directory exists
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-
-        # Load existing data or create new list
-        try:
-            if Path(output_file).exists():
-                with open(output_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            else:
-                data = []
-        except (json.JSONDecodeError, FileNotFoundError):
-            data = []
-
-        # Append new record
-        data.append(record)
-
-        # Write back to file
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-
-        logger.info(f"Collected search results to {output_file}")
-
-    return collector
-
-
-def create_text_file_collector(output_file: str) -> Callable[[str], None]:
-    """
-    Create a collector that appends search results to a text file.
-
-    Parameters
-    ----------
-    output_file : str
-        Path to the output text file.
-
-    Returns
-    -------
-    Callable
-        Collection function that writes to the specified file.
-    """
-    def collector(search_results: str) -> None:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Ensure parent directory exists
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-
-        # Append to file
-        with open(output_file, 'a', encoding='utf-8') as f:
-            f.write(f"\n{'='*80}\n")
-            f.write(f"SEARCH RESULTS - {timestamp}\n")
-            f.write(f"{'='*80}\n")
-            f.write(f"{search_results}\n")
-            f.write(f"{'='*80}\n\n")
-
-        logger.info(f"Collected search results to {output_file}")
-
-    return collector
-
-
-def create_memory_collector() -> tuple[Callable[[str], None], Callable[[], list[dict]]]:
-    """
-    Create a collector that stores search results in memory.
-
-    Returns
-    -------
-    tuple
-        (collection_function, retrieval_function)
-        - collection_function: Callable that stores results
-        - retrieval_function: Callable that returns stored results
-    """
-    storage = []
-
-    def collector(search_results: str) -> None:
-        timestamp = datetime.now().isoformat()
-        record = {
-            "timestamp": timestamp,
-            "search_results": search_results
-        }
-        storage.append(record)
-        logger.info(f"Collected search results in memory (total: {len(storage)} records)")
-
-    def retriever() -> list[dict]:
-        return storage.copy()
-
-    return collector, retriever
-
-
 def create_console_collector() -> Callable[[str], None]:
     """
     Create a collector that prints search results to console.
@@ -245,125 +127,6 @@ def create_console_collector() -> Callable[[str], None]:
         print('='*60)
 
     return collector
-
-
-def create_postgres_collector() -> tuple[Callable[[str], None], str]:
-    """
-    Create a collector that stores search results in PostgreSQL with embeddings.
-    
-    Automatically generates a session UUID and stores search results with 
-    OpenAI embeddings in the search_results table.
-    
-    NOTE: This collector is only used for search results from handoff agents,
-    NOT for clarification questions.
-
-    Returns
-    -------
-    tuple
-        (collection_function, session_id)
-        - collection_function: Callable that stores search results in PostgreSQL
-        - session_id: The generated session UUID for this collector
-    
-    Raises
-    ------
-    ImportError
-        If required dependencies (psycopg2) are not available
-    """
-    # Check dependencies
-    if not PSYCOPG2_AVAILABLE:
-        raise ImportError("psycopg2 is required for PostgreSQL collector. Install with: pip install psycopg2-binary")
-    
-    if not OPENAI_AVAILABLE:
-        logger.warning("OpenAI library not available - embeddings will be skipped")
-    # Database configuration (same as demo_pgvector.py)
-    DB_CONFIG = {
-        'host': '127.0.0.1',
-        'port': 5433,
-        'database': 'my-deep-research',
-        'user': 'postgres',
-        'password': 'secret'
-    }
-    
-    # Generate session UUID
-    session_id = str(uuid.uuid4())
-    logger.info(f"Created postgres collector with session_id: {session_id}")
-    
-    # Initialize OpenAI client (reuse from environment)
-    openai_client = None
-    if OPENAI_AVAILABLE:
-        try:
-            api_key = os.getenv('OPENAI_API_KEY')
-            if api_key:
-                openai_client = OpenAI(api_key=api_key)
-                logger.info("OpenAI client initialized for embedding generation")
-            else:
-                logger.warning("OPENAI_API_KEY not found - embeddings will be skipped")
-        except Exception as e:
-            logger.warning(f"Failed to initialize OpenAI client: {e} - embeddings will be skipped")
-    else:
-        logger.warning("OpenAI library not available - embeddings will be skipped")
-    
-    def get_embedding(text: str) -> Optional[list[float]]:
-        """Get embedding for text using OpenAI API."""
-        if not openai_client:
-            return None
-            
-        try:
-            response = openai_client.embeddings.create(
-                input=text,
-                model="text-embedding-3-small"
-            )
-            return response.data[0].embedding
-        except Exception as e:
-            logger.warning(f"Failed to get embedding for text (length: {len(text)}): {e}")
-            return None
-    
-    def connect_to_db():
-        """Connect to PostgreSQL database."""
-        try:
-            conn = psycopg2.connect(**DB_CONFIG)
-            return conn
-        except Exception as e:
-            logger.error(f"Error connecting to database: {e}")
-            return None
-    
-    def collector(search_results: str) -> None:
-        """Store search results in PostgreSQL with embeddings."""
-        try:
-            # Connect to database
-            conn = connect_to_db()
-            if not conn:
-                logger.error("Failed to connect to database - search results not stored")
-                return
-            
-            try:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    # Get embedding for the search results
-                    embedding = get_embedding(search_results)
-                    
-                    # Insert search results (with or without embedding)
-                    cur.execute("""
-                        INSERT INTO search_results (session_id, text, embedding)
-                        VALUES (%s, %s, %s)
-                        RETURNING id, created_at;
-                    """, (session_id, search_results, embedding))
-                    
-                    result = cur.fetchone()
-                    conn.commit()
-                    
-                    embedding_status = "with embedding" if embedding else "without embedding"
-                    logger.info(
-                        f"Stored search results to database (ID: {result['id']}, "
-                        f"Session: {session_id[:8]}..., {embedding_status})"
-                    )
-                    
-            finally:
-                conn.close()
-                
-        except Exception as e:
-            logger.error(f"Error storing search results to database: {e}")
-    
-    return collector, session_id
 
 
 async def run_clarification_analysis(
@@ -402,16 +165,15 @@ async def run_clarification_analysis(
     if env_files:
         logger.info(f"Loaded environment from: {', '.join(env_files)}")
 
-    # Create appropriate collector for search results (from handoff agent)
+    # Create appropriate storage for search results (from handoff agent)
     session_id = None
     if use_postgres:
-        collector, session_id = create_postgres_collector()
-        logger.info(f"Using PostgreSQL collector for search results with session_id: {session_id}")
+        storage, session_id = create_postgres_storage()
+        collector = storage.collect_search_results
+        logger.info(f"Using PostgreSQL storage for search results with session_id: {session_id}")
     elif output_file:
-        if output_format.lower() == "text":
-            collector = create_text_file_collector(output_file)
-        else:
-            collector = create_json_file_collector(output_file)
+        storage = create_textfile_storage(output_file)
+        collector = storage.collect_search_results
         logger.info(f"Search results will be saved to: {output_file}")
     else:
         collector = create_console_collector()
@@ -479,14 +241,16 @@ async def chat_mode(model: str = "gpt-4.1-mini", clarification_model: Optional[s
         logger.error("Agents SDK not installed. Please ensure it's available in your environment.")
         sys.exit(1)
 
-    # Create appropriate collector for search results (from handoff agent)
+    # Create appropriate storage for search results (from handoff agent)
     session_id = None
     if use_postgres:
-        chat_collector, session_id = create_postgres_collector()
-        logger.info(f"Using PostgreSQL collector for search results with session_id: {session_id}")
+        storage, session_id = create_postgres_storage()
+        chat_collector = storage.collect_search_results
+        logger.info(f"Using PostgreSQL storage for search results with session_id: {session_id}")
     else:
-        # Create a memory collector for search results (from handoff)
-        chat_collector, _ = create_memory_collector()
+        # Create a memory storage for search results (from handoff)
+        storage = create_memory_storage()
+        chat_collector = storage.collect_search_results
 
     # Create display callback for questions in chat mode (let console show naturally)
     chat_display = None

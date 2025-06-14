@@ -26,6 +26,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.utils.helpers import load_dotenv_files
 from src.sequential_search_agent.agent import make_sequential_search_agent
+from src.storage.search_results import (
+    create_memory_storage,
+    create_textfile_storage
+)
 
 # Configure logging
 logging.basicConfig(
@@ -36,116 +40,8 @@ logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Collection Callback Functions
+# Collection Callback Functions (replaced by storage system)
 # ──────────────────────────────────────────────────────────────────────────
-
-def create_json_file_collector(output_file: str) -> Callable[[str], None]:
-    """
-    Create a collector that appends answers to a JSON file.
-
-    Parameters
-    ----------
-    output_file : str
-        Path to the output JSON file.
-
-    Returns
-    -------
-    Callable
-        Collection function that writes to the specified file.
-    """
-    import json
-
-    def collector(answer: str) -> None:
-        timestamp = datetime.now().isoformat()
-        record = {
-            "timestamp": timestamp,
-            "answer": answer
-        }
-
-        # Ensure parent directory exists
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-
-        # Load existing data or create new list
-        try:
-            if Path(output_file).exists():
-                with open(output_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            else:
-                data = []
-        except (json.JSONDecodeError, FileNotFoundError):
-            data = []
-
-        # Append new record
-        data.append(record)
-
-        # Write back to file
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-
-        logger.info(f"Collected result to {output_file}")
-
-    return collector
-
-
-def create_text_file_collector(output_file: str) -> Callable[[str], None]:
-    """
-    Create a collector that appends answers to a text file.
-
-    Parameters
-    ----------
-    output_file : str
-        Path to the output text file.
-
-    Returns
-    -------
-    Callable
-        Collection function that writes to the specified file.
-    """
-    def collector(answer: str) -> None:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Ensure parent directory exists
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-
-        # Append to file
-        with open(output_file, 'a', encoding='utf-8') as f:
-            f.write(f"\n{'='*80}\n")
-            f.write(f"TIMESTAMP: {timestamp}\n")
-            f.write(f"{'='*80}\n")
-            f.write(f"ANSWER:\n{answer}\n")
-            f.write(f"{'='*80}\n\n")
-
-        logger.info(f"Collected result to {output_file}")
-
-    return collector
-
-
-def create_memory_collector() -> tuple[Callable[[str], None], Callable[[], list[dict]]]:
-    """
-    Create a collector that stores answers in memory.
-
-    Returns
-    -------
-    tuple
-        (collection_function, retrieval_function)
-        - collection_function: Callable that stores results
-        - retrieval_function: Callable that returns stored results
-    """
-    storage = []
-
-    def collector(answer: str) -> None:
-        timestamp = datetime.now().isoformat()
-        record = {
-            "timestamp": timestamp,
-            "answer": answer
-        }
-        storage.append(record)
-        logger.info(f"Collected result in memory (total: {len(storage)} records)")
-
-    def retriever() -> list[dict]:
-        return storage.copy()
-
-    return collector, retriever
 
 
 async def run_sequential_search_query(
@@ -178,16 +74,15 @@ async def run_sequential_search_query(
     if env_files:
         logger.info(f"Loaded environment from: {', '.join(env_files)}")
 
-    # Create appropriate collector
+    # Create appropriate storage
     if output_file:
-        if output_format.lower() == "text":
-            collector = create_text_file_collector(output_file)
-        else:
-            collector = create_json_file_collector(output_file)
+        storage = create_textfile_storage(output_file)
+        collector = storage.collect_search_results
         logger.info(f"Results will be saved to: {output_file}")
     else:
-        collector, _ = create_memory_collector()
-        logger.info("Using memory collector (results will not be saved)")
+        storage = create_memory_storage()
+        collector = storage.collect_search_results
+        logger.info("Using memory storage (results will not be saved)")
 
     # Create the sequential search agent
     logger.info(f"Creating sequential search agent with model: {model}")
