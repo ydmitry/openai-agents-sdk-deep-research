@@ -107,26 +107,8 @@ def create_file_display(output_file: str, format_type: str = "text") -> Callable
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Collection Callback Functions (for storing search results only)
+# Collection Callback Functions (replaced by storage system)
 # ──────────────────────────────────────────────────────────────────────────
-
-def create_console_collector() -> Callable[[str], None]:
-    """
-    Create a collector that prints search results to console.
-
-    Returns
-    -------
-    Callable
-        Collection function that prints to stdout.
-    """
-    def collector(search_results: str) -> None:
-        print(f"\n{'='*60}")
-        print("SEARCH RESULTS:")
-        print('='*60)
-        print(search_results)
-        print('='*60)
-
-    return collector
 
 
 async def run_clarification_analysis(
@@ -169,15 +151,25 @@ async def run_clarification_analysis(
     session_id = None
     if use_postgres:
         storage, session_id = create_postgres_storage()
-        collector = storage.collect_search_results
         logger.info(f"Using PostgreSQL storage for search results with session_id: {session_id}")
     elif output_file:
         storage = create_textfile_storage(output_file)
-        collector = storage.collect_search_results
         logger.info(f"Search results will be saved to: {output_file}")
     else:
-        collector = create_console_collector()
-        logger.info("Using console collector for search results")
+        # For console output, create a simple console collector callback
+        class ConsoleStorage:
+            def collect_search_results(self, results: str) -> None:
+                print(f"\n{'='*60}")
+                print("SEARCH RESULTS:")
+                print('='*60)
+                print(results)
+                print('='*60)
+            
+            def get_citations(self) -> list[str]:
+                return []  # Console storage doesn't persist citations
+        
+        storage = ConsoleStorage()
+        logger.info("Using console storage for search results")
 
     # Create appropriate display callback for questions (file only, console shows naturally)
     if output_file:
@@ -191,7 +183,7 @@ async def run_clarification_analysis(
     clarification_model_info = f" (clarification: {clarification_model})" if clarification_model else ""
     logger.info(f"Creating clarification agent with model: {model}{clarification_model_info}, handoff: {enable_handoff}")
     agent = make_clarification_agent(
-        collector, 
+        storage, 
         model=model,
         clarification_model=clarification_model,
         temperature=temperature, 
@@ -245,12 +237,10 @@ async def chat_mode(model: str = "gpt-4.1-mini", clarification_model: Optional[s
     session_id = None
     if use_postgres:
         storage, session_id = create_postgres_storage()
-        chat_collector = storage.collect_search_results
         logger.info(f"Using PostgreSQL storage for search results with session_id: {session_id}")
     else:
         # Create a memory storage for search results (from handoff)
         storage = create_memory_storage()
-        chat_collector = storage.collect_search_results
 
     # Create display callback for questions in chat mode (let console show naturally)
     chat_display = None
@@ -258,7 +248,7 @@ async def chat_mode(model: str = "gpt-4.1-mini", clarification_model: Optional[s
     # Initialize clarification agent for chat session with optional handoff
     logger.debug(f"Initializing clarification agent for chat session (handoff: {enable_handoff})")
     agent = make_clarification_agent(
-        chat_collector, 
+        storage, 
         model=model,
         clarification_model=clarification_model,
         temperature=temperature, 

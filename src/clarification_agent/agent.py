@@ -30,6 +30,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.helpers import get_model_settings
+from storage.search_results import SearchResultsStorage
 
 # Import sequential search agent for handoff
 from sequential_search_agent import make_sequential_search_agent
@@ -41,9 +42,9 @@ class ClarificationHooks(AgentHooks[Any]):
     """Lifecycle hooks that display questions but do NOT collect them."""
 
     def __init__(self,
-                 collect_callback: Optional[ABCCallable[[str], None]] = None,
+                 storage: Optional[SearchResultsStorage] = None,
                  display_callback: Optional[ABCCallable[[str], None]] = None):
-        self.collect_callback = collect_callback  # For handoff to search agent only
+        self.storage = storage  # For handoff to search agent only
         self.display_callback = display_callback  # For displaying questions to user
 
     async def on_start(
@@ -82,7 +83,7 @@ class ClarificationHooks(AgentHooks[Any]):
 
 
 def make_clarification_agent(
-    collect: ABCCallable[[str], None],
+    storage: SearchResultsStorage,
     *,
     model: str = "gpt-4.1-mini",
     clarification_model: Optional[str] = None,
@@ -95,8 +96,8 @@ def make_clarification_agent(
 
     Parameters
     ----------
-    collect : (questions:str) -> None
-        Callback that receives search results from handoff agents (NOT used for questions).
+    storage : SearchResultsStorage
+        Storage object that receives search results from handoff agents (NOT used for questions).
     model : str
         LLM model to use for the search agent in handoff scenarios.
     clarification_model : Optional[str]
@@ -127,16 +128,16 @@ def make_clarification_agent(
 
     # Create the hooks with display callback
     clarification_hooks = ClarificationHooks(
-        collect_callback=collect,  # Passed to handoff agents only
+        storage=storage,  # Passed to handoff agents only
         display_callback=display_callback  # For displaying questions
     )
 
     # Prepare handoffs if enabled
     handoffs = []
     if enable_handoff:
-        # Create sequential search agent for handoff - THIS gets the collector
+        # Create sequential search agent for handoff - THIS gets the storage
         # Use the original model parameter for search agent
-        search_agent = make_sequential_search_agent(collect, model=model, temperature=temperature)
+        search_agent = make_sequential_search_agent(storage, model=model, temperature=temperature)
         handoffs = [search_agent]
 
     # Instructions based on whether handoff is enabled

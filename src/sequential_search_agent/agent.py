@@ -31,6 +31,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.helpers import get_model_settings
+from storage.search_results import SearchResultsStorage
 
 # Import the websearch agent
 import sys
@@ -41,14 +42,14 @@ from websearch_agent.agent import make_search_agent
 logger = logging.getLogger(__name__)
 
 
-def create_websearch_tool(collect_callback: ABCCallable[[str], None], model: str = "gpt-4.1-mini", temperature: float = 0.2):
+def create_websearch_tool(storage: SearchResultsStorage, model: str = "gpt-4.1-mini", temperature: float = 0.2):
     """
     Create a websearch function tool that wraps the websearch agent.
     """
-    # Create the websearch agent with the same collect callback
-    # This allows the websearch agent to call the collect callback directly when it completes
+    # Create the websearch agent with the same storage
+    # This allows the websearch agent to store results directly when it completes
     websearch_agent = make_search_agent(
-        collect_callback,
+        storage,
         model=model,
         temperature=temperature
     )
@@ -67,7 +68,7 @@ def create_websearch_tool(collect_callback: ABCCallable[[str], None], model: str
         try:
             logger.info(f"WebSearch tool executing search: {query}")
 
-            # Run the websearch agent (it will call the collect callback when done)
+            # Run the websearch agent (it will store results directly when done)
             result = await Runner.run(websearch_agent, query)
 
             # Return the search results for the sequential agent to use
@@ -86,7 +87,7 @@ def create_websearch_tool(collect_callback: ABCCallable[[str], None], model: str
 
 
 def make_sequential_search_agent(
-    collect: ABCCallable[[str], None],
+    storage: SearchResultsStorage,
     *,
     model: str = "gpt-4.1-mini",
     temperature: float = 0.2,
@@ -96,8 +97,8 @@ def make_sequential_search_agent(
 
     Parameters
     ----------
-    collect : (answer:str) -> None
-        Callback that receives the final comprehensive answer.
+    storage : SearchResultsStorage
+        Storage object that receives the final comprehensive answer.
     model : str
         LLM model to use for the agent.
     temperature : float
@@ -118,8 +119,8 @@ def make_sequential_search_agent(
     )
 
     # Create the websearch tool that wraps the websearch agent
-    # The websearch agent will call the collect callback directly when it completes
-    websearch_tool = create_websearch_tool(collect, model=model, temperature=temperature)
+    # The websearch agent will store results directly when it completes
+    websearch_tool = create_websearch_tool(storage, model=model, temperature=temperature)
 
     return Agent[Any](
         name="Sequential Search & Research Agent",

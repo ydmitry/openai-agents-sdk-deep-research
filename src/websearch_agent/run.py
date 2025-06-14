@@ -77,16 +77,14 @@ async def run_search_query(
     # Create appropriate storage
     if output_file:
         storage = create_textfile_storage(output_file)
-        collector = storage.collect_search_results
         logger.info(f"Results will be saved to: {output_file}")
     else:
         storage = create_memory_storage()
-        collector = storage.collect_search_results
         logger.info("Using memory storage (results will not be saved)")
 
     # Create the search agent
     logger.info(f"Creating search agent with model: {model}")
-    agent = make_search_agent(collector, model=model, temperature=temperature)
+    agent = make_search_agent(storage, model=model, temperature=temperature)
 
     # Run the agent
     logger.info(f"Executing search query: {query}")

@@ -31,6 +31,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.helpers import get_model_settings
+from storage.search_results import SearchResultsStorage
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,8 @@ logger = logging.getLogger(__name__)
 class SearchCollectionHooks(AgentHooks[Any]):
     """Lifecycle hooks that automatically collect results when the agent completes."""
 
-    def __init__(self, collect_callback: ABCCallable[[str], None]):
-        self.collect_callback = collect_callback
+    def __init__(self, storage: SearchResultsStorage):
+        self.storage = storage
 
     async def on_start(
         self,
@@ -66,9 +67,9 @@ class SearchCollectionHooks(AgentHooks[Any]):
         try:
             answer = str(output) if output else ""
 
-            # Call the collection callback with just the answer
-            self.collect_callback(answer)
-            logger.info(f"Automatically collected result (answer length: {len(answer)} chars)")
+            # Store the result using storage object
+            self.storage.collect_search_results(answer)
+            logger.info(f"Automatically stored result (answer length: {len(answer)} chars)")
 
         except Exception as e:
             # Log errors but don't interrupt the agent's response
@@ -76,18 +77,18 @@ class SearchCollectionHooks(AgentHooks[Any]):
 
 
 def make_search_agent(
-    collect: ABCCallable[[str], None],
+    storage: SearchResultsStorage,
     *,
     model: str = "gpt-4.1-mini",
     temperature: float = 0.2,
 ) -> Agent[Any]:
     """
-    Create a search agent that automatically collects answers via lifecycle hooks.
+    Create a search agent that automatically stores answers via lifecycle hooks.
 
     Parameters
     ----------
-    collect : (answer:str) -> None
-        Callback that receives each answer.
+    storage : SearchResultsStorage
+        Storage object that receives each answer.
     model : str
         LLM model to use for the agent.
     temperature : float
@@ -108,7 +109,7 @@ def make_search_agent(
     )
 
     # Create the hooks internally
-    collection_hooks = SearchCollectionHooks(collect)
+    collection_hooks = SearchCollectionHooks(storage)
 
     return Agent[Any](
         name="Search & Collect Agent",
