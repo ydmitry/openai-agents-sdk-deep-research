@@ -20,10 +20,8 @@ from collections.abc import Callable as ABCCallable
 
 from agents import (
     Agent,
-    ModelSettings,
     AgentHooks,
     RunContextWrapper,
-    WebSearchTool,
 )
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
@@ -42,7 +40,7 @@ logger = logging.getLogger(__name__)
 class ClarificationHooks(AgentHooks[Any]):
     """Lifecycle hooks that display questions but do NOT collect them."""
 
-    def __init__(self, 
+    def __init__(self,
                  collect_callback: Optional[ABCCallable[[str], None]] = None,
                  display_callback: Optional[ABCCallable[[str], None]] = None):
         self.collect_callback = collect_callback  # For handoff to search agent only
@@ -74,7 +72,7 @@ class ClarificationHooks(AgentHooks[Any]):
             if self.display_callback:
                 self.display_callback(questions)
                 logger.info(f"Displayed clarification questions (length: {len(questions)} chars)")
-            
+
             # NEVER collect questions - only search results from handoff agents get collected
             logger.debug("Clarification agent output not collected (by design)")
 
@@ -87,6 +85,7 @@ def make_clarification_agent(
     collect: ABCCallable[[str], None],
     *,
     model: str = "gpt-4.1-mini",
+    clarification_model: Optional[str] = None,
     temperature: float = 0.3,
     enable_handoff: bool = False,
     display_callback: Optional[ABCCallable[[str], None]] = None,
@@ -99,7 +98,9 @@ def make_clarification_agent(
     collect : (questions:str) -> None
         Callback that receives search results from handoff agents (NOT used for questions).
     model : str
-        LLM model to use for the agent.
+        LLM model to use for the search agent in handoff scenarios.
+    clarification_model : Optional[str]
+        LLM model to use specifically for the clarification agent. If None, uses the model parameter.
     temperature : float
         Temperature setting for the LLM.
     enable_handoff : bool
@@ -113,9 +114,12 @@ def make_clarification_agent(
         Ready-to-use Agents-SDK agent instance with display hooks.
     """
 
+    # Use clarification_model if provided, otherwise fall back to model
+    agent_model = clarification_model or model
+
     # Configure model settings using helper function
     model_settings = get_model_settings(
-        model_name=model,
+        model_name=agent_model,
         temperature=temperature,
         max_tokens=2048,  # Sufficient for clarification questions
         parallel_tool_calls=False
@@ -131,6 +135,7 @@ def make_clarification_agent(
     handoffs = []
     if enable_handoff:
         # Create sequential search agent for handoff - THIS gets the collector
+        # Use the original model parameter for search agent
         search_agent = make_sequential_search_agent(collect, model=model, temperature=temperature)
         handoffs = [search_agent]
 
@@ -140,21 +145,17 @@ def make_clarification_agent(
             f"{RECOMMENDED_PROMPT_PREFIX}\n\n"
             "You are a clarification agent that helps users refine their requests before conducting research.\n\n"
             "WORKFLOW:\n"
-            "1. IMPORTANT! Detect terms and use web_search to understand them first\n"
-            "2. When users provide vague or ambiguous requests, ask 3-7 clarifying questions\n"
-            "3. When users provide comprehensive answers to your questions, handoff to the search agent\n"
-            "4. When users ask for research, information gathering, or web search, handoff to the search agent\n"
-            "5. When the request is clear and actionable, handoff to the search agent\n\n"
-            "SEARCH STRATEGY:\n"
-            "- Use web_search for unknown terms, technologies, frameworks, or concepts mentioned by the user\n"
-            "- Search for context to better understand the domain or industry they're working in\n"
-            "- This helps you ask more informed and relevant clarification questions\n\n"
+            "1. When users provide vague or ambiguous requests, ask 3-7 clarifying questions\n"
+            "2. When users provide comprehensive answers to your questions, handoff to the search agent\n"
+            "3. When users ask for research, information gathering, or web search, handoff to the search agent\n"
+            "4. When the request is clear and actionable, rewrite question to be more specific and handoff to the search agent\n\n"
             "HANDOFF CRITERIA - Handoff when:\n"
             "- User has answered most/all clarification questions with sufficient detail\n"
             "- User provides comprehensive context, requirements, and constraints\n"
             "- User explicitly requests research, analysis, or information gathering\n"
             "- Request contains enough specificity for effective searching\n"
             "- No major ambiguities remain that would hinder research\n\n"
+            "- Original question was rewritten to be more specific\n\n"
             "CLARIFICATION FORMAT (when needed):\n"
             "1. [Question] - A good answer should include: [guidance]\n"
             "2. [Question] - A good answer should include: [guidance]\n"
@@ -164,19 +165,7 @@ def make_clarification_agent(
     else:
         instructions = (
             "You are a clarification agent. Analyze the user's request and identify what information is missing, ambiguous, or unclear.\n\n"
-            "WORKFLOW:\n"
-            "1. IMPORTANT! Detect terms and use web_search to understand them first\n"
-            "2. Generate specific clarification questions based on your understanding\n\n"
-            "SEARCH STRATEGY:\n"
-            "- Use web_search for unknown terms, technologies, frameworks, or concepts mentioned by the user\n"
-            "- Search for context to better understand the domain or industry they're working in\n"
-            "- This helps you ask more informed and relevant clarification questions\n\n"
             "Generate specific clarification questions that would help make the request more precise and actionable. Focus on:\n"
-            "- Ambiguous terms that need definition (search first if unfamiliar)\n"
-            "- Missing context or requirements\n"
-            "- Unclear scope or boundaries\n"
-            "- Undefined constraints or preferences\n"
-            "- Missing success criteria\n\n"
             "For each question, also suggest what a good answer might include to guide the user.\n\n"
             "Format your response as a numbered list:\n"
             "1. [Question] - A good answer should include: [guidance]\n"
@@ -188,8 +177,7 @@ def make_clarification_agent(
     return Agent[Any](
         name="Clarification Agent" + (" with Handoff" if enable_handoff else ""),
         instructions=instructions,
-        tools=[WebSearchTool(search_context_size="low")],  # Add search tool for unknown terms
-        model=model,
+        model=agent_model,
         model_settings=model_settings,
         hooks=clarification_hooks,  # Attach the display hooks
         handoffs=handoffs,  # Enable handoff to search agent if requested

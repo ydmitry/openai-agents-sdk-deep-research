@@ -371,6 +371,7 @@ async def run_clarification_analysis(
     output_file: Optional[str] = None,
     output_format: str = "json",
     model: str = "gpt-4.1-mini",
+    clarification_model: Optional[str] = None,
     temperature: float = 0.3,
     log_level: str = "INFO",
     enable_handoff: bool = False,
@@ -383,7 +384,8 @@ async def run_clarification_analysis(
         user_request: The request to analyze for clarification
         output_file: Optional output file path
         output_format: Output format ("json" or "text")
-        model: Model to use for the agent
+        model: Model to use for the search agent in handoff scenarios
+        clarification_model: Model to use specifically for the clarification agent
         temperature: Temperature setting
         log_level: Logging level
         enable_handoff: Whether to enable handoff to sequential search agent
@@ -424,10 +426,12 @@ async def run_clarification_analysis(
         logger.info("Questions will be displayed on console via normal agent output")
 
     # Create the clarification agent
-    logger.info(f"Creating clarification agent with model: {model}, handoff: {enable_handoff}")
+    clarification_model_info = f" (clarification: {clarification_model})" if clarification_model else ""
+    logger.info(f"Creating clarification agent with model: {model}{clarification_model_info}, handoff: {enable_handoff}")
     agent = make_clarification_agent(
         collector, 
-        model=model, 
+        model=model,
+        clarification_model=clarification_model,
         temperature=temperature, 
         enable_handoff=enable_handoff,
         display_callback=display_callback
@@ -448,7 +452,7 @@ async def run_clarification_analysis(
         raise
 
 
-async def chat_mode(model: str = "gpt-4.1-mini", temperature: float = 0.3, enable_handoff: bool = True, log_level: str = "INFO", use_postgres: bool = False):
+async def chat_mode(model: str = "gpt-4.1-mini", clarification_model: Optional[str] = None, temperature: float = 0.3, enable_handoff: bool = True, log_level: str = "INFO", use_postgres: bool = False):
     """
     Run the clarification agent in chat mode, providing a conversational interface.
 
@@ -460,7 +464,8 @@ async def chat_mode(model: str = "gpt-4.1-mini", temperature: float = 0.3, enabl
     # Set logging level
     logging.getLogger().setLevel(getattr(logging, log_level.upper()))
     
-    logger.info(f"Starting clarification chat mode with model: {model}, handoff: {enable_handoff}")
+    clarification_model_info = f" (clarification: {clarification_model})" if clarification_model else ""
+    logger.info(f"Starting clarification chat mode with model: {model}{clarification_model_info}, handoff: {enable_handoff}")
 
     # Load environment variables (including API keys)
     log_env_files = load_dotenv_files()
@@ -490,7 +495,8 @@ async def chat_mode(model: str = "gpt-4.1-mini", temperature: float = 0.3, enabl
     logger.debug(f"Initializing clarification agent for chat session (handoff: {enable_handoff})")
     agent = make_clarification_agent(
         chat_collector, 
-        model=model, 
+        model=model,
+        clarification_model=clarification_model,
         temperature=temperature, 
         enable_handoff=enable_handoff,
         display_callback=chat_display
@@ -577,9 +583,10 @@ Examples:
   %(prog)s "Create a machine learning model" --output results.txt
   %(prog)s "Design a database" --format text --output results.txt
   %(prog)s "Develop mobile app" --model gpt-4o --temperature 0.2
+  %(prog)s "Analyze user needs" --clarification-model gpt-4o --model gpt-4.1-mini  # Different models for clarification vs search
   %(prog)s "Analyze user needs" --postgres  # Store search results in PostgreSQL with embeddings
   %(prog)s --chat  # Start interactive chat mode
-  %(prog)s --chat --postgres  # Chat mode with PostgreSQL storage for search results
+  %(prog)s --chat --clarification-model gpt-4o --postgres  # Chat mode with specific clarification model and PostgreSQL storage
         """
     )
 
@@ -616,7 +623,12 @@ Examples:
     parser.add_argument(
         "--model", "-m",
         default="gpt-4.1-mini",
-        help="Model to use (default: gpt-4.1-mini)"
+        help="Model to use for search agent (default: gpt-4.1-mini)"
+    )
+
+    parser.add_argument(
+        "--clarification-model", "-cm",
+        help="Model to use specifically for clarification agent (default: uses --model value)"
     )
 
     parser.add_argument(
@@ -656,6 +668,7 @@ Examples:
         try:
             asyncio.run(chat_mode(
                 model=args.model,
+                clarification_model=args.clarification_model,
                 temperature=args.temperature,
                 enable_handoff=enable_handoff,
                 log_level=args.log_level,
@@ -679,6 +692,7 @@ Examples:
                 args.output,
                 args.format,
                 args.model,
+                args.clarification_model,
                 args.temperature,
                 args.log_level,
                 enable_handoff,
