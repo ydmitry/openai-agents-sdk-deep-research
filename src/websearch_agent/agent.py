@@ -117,7 +117,8 @@ def make_search_agent(
             "1. Use the web_search tool to gather comprehensive, up-to-date information.\n"
             "2. Analyze and synthesize the search results.\n"
             "3. Provide a thorough, well-structured answer based on the search findings.\n"
-            "Make sure your response is informative, accurate, and directly addresses the user's query."
+            "Make sure your response is informative, accurate, and directly addresses the user's query.\n"
+            "IMPORTANT! Duplicate user's input in your response in first paragraph."
         ),
         tools=[
             WebSearchTool(search_context_size="high"),   # Only need the search tool

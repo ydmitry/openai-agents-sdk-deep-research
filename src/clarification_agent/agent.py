@@ -15,7 +15,7 @@ Usage:
 """
 
 import logging
-from typing import Any
+from typing import Any, Optional
 from collections.abc import Callable as ABCCallable
 
 from agents import (
@@ -23,6 +23,7 @@ from agents import (
     ModelSettings,
     AgentHooks,
     RunContextWrapper,
+    WebSearchTool,
 )
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
@@ -39,10 +40,13 @@ logger = logging.getLogger(__name__)
 
 
 class ClarificationHooks(AgentHooks[Any]):
-    """Lifecycle hooks that automatically collect clarification questions when the agent completes."""
+    """Lifecycle hooks that display questions but do NOT collect them."""
 
-    def __init__(self, collect_callback: ABCCallable[[str], None]):
-        self.collect_callback = collect_callback
+    def __init__(self, 
+                 collect_callback: Optional[ABCCallable[[str], None]] = None,
+                 display_callback: Optional[ABCCallable[[str], None]] = None):
+        self.collect_callback = collect_callback  # For handoff to search agent only
+        self.display_callback = display_callback  # For displaying questions to user
 
     async def on_start(
         self,
@@ -62,17 +66,21 @@ class ClarificationHooks(AgentHooks[Any]):
         agent: Agent[Any],
         output: Any,
     ) -> None:
-        """Called when the agent produces a final output - automatically collect the questions."""
+        """Called when the agent produces a final output - display questions but do NOT collect."""
         try:
             questions = str(output) if output else ""
 
-            # Call the collection callback with the questions
-            self.collect_callback(questions)
-            logger.info(f"Automatically collected clarification questions (length: {len(questions)} chars)")
+            # Display questions to user if display callback provided
+            if self.display_callback:
+                self.display_callback(questions)
+                logger.info(f"Displayed clarification questions (length: {len(questions)} chars)")
+            
+            # NEVER collect questions - only search results from handoff agents get collected
+            logger.debug("Clarification agent output not collected (by design)")
 
         except Exception as e:
             # Log errors but don't interrupt the agent's response
-            logger.error(f"Error in clarification collection hook: {str(e)}")
+            logger.error(f"Error in clarification display hook: {str(e)}")
 
 
 def make_clarification_agent(
@@ -81,6 +89,7 @@ def make_clarification_agent(
     model: str = "gpt-4.1-mini",
     temperature: float = 0.3,
     enable_handoff: bool = False,
+    display_callback: Optional[ABCCallable[[str], None]] = None,
 ) -> Agent[Any]:
     """
     Create a clarification agent that identifies gaps and ambiguities in user requests.
@@ -88,18 +97,20 @@ def make_clarification_agent(
     Parameters
     ----------
     collect : (questions:str) -> None
-        Callback that receives the clarification questions or search results.
+        Callback that receives search results from handoff agents (NOT used for questions).
     model : str
         LLM model to use for the agent.
     temperature : float
         Temperature setting for the LLM.
     enable_handoff : bool
         Whether to enable handoff to sequential search agent.
+    display_callback : Optional[(questions:str) -> None]
+        Optional callback for displaying questions to user (separate from collection).
 
     Returns
     -------
     Agent[Any]
-        Ready-to-use Agents-SDK agent instance with automatic collection.
+        Ready-to-use Agents-SDK agent instance with display hooks.
     """
 
     # Configure model settings using helper function
@@ -110,13 +121,16 @@ def make_clarification_agent(
         parallel_tool_calls=False
     )
 
-    # Create the hooks internally
-    collection_hooks = ClarificationHooks(collect)
+    # Create the hooks with display callback
+    clarification_hooks = ClarificationHooks(
+        collect_callback=collect,  # Passed to handoff agents only
+        display_callback=display_callback  # For displaying questions
+    )
 
     # Prepare handoffs if enabled
     handoffs = []
     if enable_handoff:
-        # Create sequential search agent for handoff
+        # Create sequential search agent for handoff - THIS gets the collector
         search_agent = make_sequential_search_agent(collect, model=model, temperature=temperature)
         handoffs = [search_agent]
 
@@ -126,12 +140,17 @@ def make_clarification_agent(
             f"{RECOMMENDED_PROMPT_PREFIX}\n\n"
             "You are a clarification agent that helps users refine their requests before conducting research.\n\n"
             "WORKFLOW:\n"
-            "1. When users provide vague or ambiguous requests, ask 3-7 clarifying questions\n"
-            "2. When users provide comprehensive answers to your questions, handoff to the search agent\n"
-            "3. When users ask for research, information gathering, or web search, handoff to the search agent\n"
-            "4. When the request is clear and actionable, handoff to the search agent\n\n"
+            "1. IMPORTANT! Detect terms and use web_search to understand them first\n"
+            "2. When users provide vague or ambiguous requests, ask 3-7 clarifying questions\n"
+            "3. When users provide comprehensive answers to your questions, handoff to the search agent\n"
+            "4. When users ask for research, information gathering, or web search, handoff to the search agent\n"
+            "5. When the request is clear and actionable, handoff to the search agent\n\n"
+            "SEARCH STRATEGY:\n"
+            "- Use web_search for unknown terms, technologies, frameworks, or concepts mentioned by the user\n"
+            "- Search for context to better understand the domain or industry they're working in\n"
+            "- This helps you ask more informed and relevant clarification questions\n\n"
             "HANDOFF CRITERIA - Handoff when:\n"
-            "- User has answered most/all clarification questions with sufficient detail\n" 
+            "- User has answered most/all clarification questions with sufficient detail\n"
             "- User provides comprehensive context, requirements, and constraints\n"
             "- User explicitly requests research, analysis, or information gathering\n"
             "- Request contains enough specificity for effective searching\n"
@@ -145,9 +164,16 @@ def make_clarification_agent(
     else:
         instructions = (
             "You are a clarification agent. Analyze the user's request and identify what information is missing, ambiguous, or unclear.\n\n"
+            "WORKFLOW:\n"
+            "1. IMPORTANT! Detect terms and use web_search to understand them first\n"
+            "2. Generate specific clarification questions based on your understanding\n\n"
+            "SEARCH STRATEGY:\n"
+            "- Use web_search for unknown terms, technologies, frameworks, or concepts mentioned by the user\n"
+            "- Search for context to better understand the domain or industry they're working in\n"
+            "- This helps you ask more informed and relevant clarification questions\n\n"
             "Generate specific clarification questions that would help make the request more precise and actionable. Focus on:\n"
-            "- Ambiguous terms that need definition\n"
-            "- Missing context or requirements\n" 
+            "- Ambiguous terms that need definition (search first if unfamiliar)\n"
+            "- Missing context or requirements\n"
             "- Unclear scope or boundaries\n"
             "- Undefined constraints or preferences\n"
             "- Missing success criteria\n\n"
@@ -162,9 +188,9 @@ def make_clarification_agent(
     return Agent[Any](
         name="Clarification Agent" + (" with Handoff" if enable_handoff else ""),
         instructions=instructions,
-        tools=[],  # No external tools needed - pure LLM analysis
+        tools=[WebSearchTool(search_context_size="low")],  # Add search tool for unknown terms
         model=model,
         model_settings=model_settings,
-        hooks=collection_hooks,  # Attach the collection hooks
+        hooks=clarification_hooks,  # Attach the display hooks
         handoffs=handoffs,  # Enable handoff to search agent if requested
-    ) 
+    )
