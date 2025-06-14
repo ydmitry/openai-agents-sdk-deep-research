@@ -85,9 +85,6 @@ def create_websearch_tool(collect_callback: ABCCallable[[str], None], model: str
     return websearch
 
 
-
-
-
 def make_sequential_search_agent(
     collect: ABCCallable[[str], None],
     *,
@@ -138,14 +135,15 @@ def make_sequential_search_agent(
             "   - Gather background information first, then dive into specifics\n"
             "   - Follow up on interesting findings from initial searches\n"
             "4. **Synthesize Results**: Combine information from all searches into a comprehensive, well-structured answer.\n"
-            "5. **Provide Context**: Include relevant context, comparisons, and analysis based on your research.\n\n"
+            "5. **Provide Context**: Include relevant context, comparisons, and analysis based on your research.\n"
+            "6. **Preserve Citations**: When sources are available from searches, include them in your final response to maintain research credibility.\n\n"
 
             "Examples of multiple searches:\n"
             "- 'Compare X vs Y' → Search for X, then search for Y, then compare\n"
             "- 'Pros and cons of X' → Search for benefits, then search for drawbacks\n"
             "- 'History and current status of X' → Search for historical context, then current developments\n\n"
 
-            "Always aim to provide thorough, accurate, and well-researched answers. Use multiple searches strategically to ensure comprehensive coverage."
+            "Always aim to provide thorough, accurate, and well-researched answers with proper citations when available. Use multiple searches strategically to ensure comprehensive coverage."
         ),
         tools=[websearch_tool],
         model=model,

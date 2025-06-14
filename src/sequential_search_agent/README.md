@@ -6,6 +6,7 @@ A sophisticated sequential search agent that uses websearch agents as tools to p
 
 - **Multi-Step Research**: Automatically breaks down complex queries into strategic sequential searches
 - **WebSearch Agent Integration**: Uses the websearch agent as an internal tool for robust search capabilities
+- **Citation Preservation**: Automatically preserves and formats source citations from web searches
 - **Intelligent Planning**: Analyzes queries to determine optimal search strategies
 - **Collection Callbacks**: Flexible result collection with the same callback system as websearch_agent
 - **Command-line Interface**: Ready-to-use runner script with comprehensive options
@@ -30,6 +31,41 @@ run.py → make_sequential_search_agent() → websearch tool → make_search_age
 ```
 
 The sequential agent acts as a pure orchestrator without hooks. Each websearch agent calls the collect callback directly when it completes, so you receive results from each individual search operation.
+
+## Citation Preservation
+
+The sequential search agent automatically preserves citations from web search results:
+
+- **Source Extraction**: Automatically extracts source URLs and titles when available
+- **Formatted Citations**: Presents citations in a clean, readable format
+- **JSON Storage**: When saving to JSON, citations are stored separately for easy parsing
+- **Text Integration**: In text format, citations are seamlessly integrated with the answer
+
+### Citation Formats
+
+Citations are preserved in multiple formats depending on what's available:
+
+```markdown
+**Sources:**
+1. [Article Title](https://example.com/article)
+2. https://example.com/source
+3. Document or reference without URL
+```
+
+### JSON Output with Citations
+
+```json
+{
+  "timestamp": "2024-01-15T10:30:45.123456",
+  "answer": "Main research findings and analysis...",
+  "sources": [
+    "1. [Article Title](https://example.com/article)",
+    "2. https://example.com/source",
+    "3. Document reference"
+  ],
+  "full_answer_with_citations": "Complete answer with integrated citations..."
+}
+```
 
 ## Quick Start
 
