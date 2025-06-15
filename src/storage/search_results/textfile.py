@@ -5,7 +5,7 @@ Text file-based search results storage.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Any
 from . import extract_urls_from_text
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,18 @@ class TextFileStorage:
         except Exception as e:
             logger.error(f"Error reading citations from {self.output_file}: {e}")
             return []
+    
+    def has_similarity_search(self) -> bool:
+        """Text file storage does not support similarity search."""
+        return False
+    
+    def similarity_search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Text file storage does not support similarity search.
+        Returns empty list.
+        """
+        logger.warning("Similarity search not supported for text file storage")
+        return []
 
 
 def create_textfile_storage(output_file: str) -> TextFileStorage:

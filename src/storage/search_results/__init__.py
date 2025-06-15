@@ -20,6 +20,34 @@ class SearchResultsStorage(Protocol):
     def get_citations(self) -> List[str]:
         """Extract and return unique URLs from stored search results."""
         ...
+    
+    def has_similarity_search(self) -> bool:
+        """Check if this storage backend supports similarity search."""
+        ...
+    
+    def similarity_search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Search for similar content using semantic similarity.
+        
+        Parameters
+        ----------
+        query : str
+            The search query to find similar content for
+        limit : int
+            Maximum number of results to return (default: 5)
+            
+        Returns
+        -------
+        List[Dict[str, Any]]
+            List of results with format:
+            {
+                "text": str,                    # The actual search result content
+                "similarity_score": float,     # 0.0 to 1.0, where 1.0 is perfect match
+                "timestamp": str,              # ISO format timestamp  
+                "metadata": Dict[str, Any]     # Additional storage-specific data
+            }
+        """
+        ...
 
 
 def extract_urls_from_text(text: str) -> List[str]:

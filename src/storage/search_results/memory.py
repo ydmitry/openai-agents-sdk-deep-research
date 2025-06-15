@@ -4,7 +4,7 @@ Memory-based search results storage.
 
 import logging
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Any
 from . import extract_urls_from_text
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,18 @@ class MemoryStorage:
     def get_all_results(self) -> List[Dict]:
         """Retrieve all stored results (for backward compatibility)."""
         return self.storage.copy()
+    
+    def has_similarity_search(self) -> bool:
+        """Memory storage does not support similarity search."""
+        return False
+    
+    def similarity_search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Memory storage does not support similarity search.
+        Returns empty list.
+        """
+        logger.warning("Similarity search not supported for memory storage")
+        return []
 
 
 def create_memory_storage() -> MemoryStorage:

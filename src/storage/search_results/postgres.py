@@ -5,7 +5,7 @@ PostgreSQL-based search results storage with embeddings.
 import logging
 import os
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from . import extract_urls_from_text
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,14 @@ except ImportError:
 
 
 class PostgresStorage:
-    """PostgreSQL storage for search results with embeddings."""
+    """
+    PostgreSQL storage for search results with embeddings.
+    
+    Requires the search_results table to be created with the migration script:
+    create_search_results_table.py
+    
+    This will create the necessary table structure and indexes for optimal performance.
+    """
     
     def __init__(self, session_id: Optional[str] = None):
         if not PSYCOPG2_AVAILABLE:
@@ -158,6 +165,80 @@ class PostgresStorage:
                 
         except Exception as e:
             logger.error(f"Error getting citations from database: {e}")
+            return []
+    
+    def has_similarity_search(self) -> bool:
+        """PostgreSQL storage supports similarity search with embeddings."""
+        return True
+    
+    def similarity_search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Search for similar content using vector similarity on embeddings.
+        Searches within the current session only.
+        
+        Uses the ivfflat index created by the migration script for optimal performance.
+        """
+        try:
+            # Get embedding for the query
+            query_embedding = self._get_embedding(query)
+            if not query_embedding:
+                logger.warning("Could not generate embedding for query - returning empty results")
+                return []
+            
+            # Connect to database
+            conn = self._connect_to_db()
+            if not conn:
+                logger.error("Failed to connect to database - returning empty results")
+                return []
+            
+            try:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # Simple similarity search using cosine distance
+                    # Lower distance = more similar
+                    cur.execute("""
+                        SELECT 
+                            text, 
+                            created_at,
+                            embedding <=> %s AS distance,
+                            id
+                        FROM search_results 
+                        WHERE session_id = %s 
+                            AND embedding IS NOT NULL
+                        ORDER BY embedding <=> %s 
+                        LIMIT %s;
+                    """, (query_embedding, self.session_id, query_embedding, limit))
+                    
+                    rows = cur.fetchall()
+                    
+                    # Convert to standard format
+                    results = []
+                    for row in rows:
+                        # Convert distance to similarity score (0-1, higher is more similar)
+                        distance = float(row['distance']) if row['distance'] is not None else 1.0
+                        similarity_score = max(0.0, min(1.0, 1.0 - distance))
+                        
+                        result = {
+                            "text": row['text'],
+                            "similarity_score": similarity_score,
+                            "timestamp": row['created_at'].isoformat() if row['created_at'] else "",
+                            "metadata": {
+                                "database_id": row['id'],
+                                "session_id": self.session_id,
+                                "cosine_distance": distance
+                            }
+                        }
+                        results.append(result)
+                    
+                    logger.info(
+                        f"Found {len(results)} similar results for query (Session: {self.session_id[:8]}...)"
+                    )
+                    return results
+                    
+            finally:
+                conn.close()
+                
+        except Exception as e:
+            logger.error(f"Error performing similarity search: {e}")
             return []
 
 
