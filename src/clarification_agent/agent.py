@@ -32,6 +32,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.helpers import get_model_settings
 from storage.search_results import SearchResultsStorage
 
+# Import shared tools
+from tools.get_sources import create_get_sources_tool
+
 # Import sequential search agent for handoff
 from sequential_search_agent import make_sequential_search_agent
 
@@ -132,6 +135,9 @@ def make_clarification_agent(
         display_callback=display_callback  # For displaying questions
     )
 
+    # Create the get sources tool
+    get_sources_tool = create_get_sources_tool(storage)
+
     # Prepare handoffs if enabled
     handoffs = []
     if enable_handoff:
@@ -149,7 +155,8 @@ def make_clarification_agent(
             "1. When users provide vague or ambiguous requests, ask 3-7 clarifying questions\n"
             "2. When users provide comprehensive answers to your questions, handoff to the search agent\n"
             "3. When users ask for research, information gathering, or web search, handoff to the search agent\n"
-            "4. When the request is clear and actionable, rewrite question to be more specific and handoff to the search agent\n\n"
+            "4. When the request is clear and actionable, rewrite question to be more specific and handoff to the search agent\n"
+            "5. When users ask for sources, citations, or references from previous research, use the get_sources tool\n\n"
             "HANDOFF CRITERIA - Handoff when:\n"
             "- User has answered most/all clarification questions with sufficient detail\n"
             "- User provides comprehensive context, requirements, and constraints\n"
@@ -168,6 +175,8 @@ def make_clarification_agent(
             "You are a clarification agent. Analyze the user's request and identify what information is missing, ambiguous, or unclear.\n\n"
             "Generate specific clarification questions that would help make the request more precise and actionable. Focus on:\n"
             "For each question, also suggest what a good answer might include to guide the user.\n\n"
+            "Additional capabilities:\n"
+            "- When users ask for sources, citations, or references from previous research, use the get_sources tool\n\n"
             "Format your response as a numbered list:\n"
             "1. [Question] - A good answer should include: [guidance]\n"
             "2. [Question] - A good answer should include: [guidance]\n"
@@ -180,6 +189,7 @@ def make_clarification_agent(
         instructions=instructions,
         model=agent_model,
         model_settings=model_settings,
+        tools=[get_sources_tool],  # Add the get sources tool
         hooks=clarification_hooks,  # Attach the display hooks
         handoffs=handoffs,  # Enable handoff to search agent if requested
     )
