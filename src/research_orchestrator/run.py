@@ -34,7 +34,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def chat_mode(model: str = "gpt-4.1-mini", temperature: float = 0.3, log_level: str = "INFO", use_postgres: bool = False):
+async def chat_mode(model: str = "gpt-4.1-mini", temperature: float = 0.3, log_level: str = "INFO", postgres: bool = False):
     """
     Run the research orchestrator in chat mode.
     """
@@ -57,7 +57,7 @@ async def chat_mode(model: str = "gpt-4.1-mini", temperature: float = 0.3, log_l
 
     # Create appropriate storage for search results
     session_id = None
-    if use_postgres:
+    if postgres:
         storage, session_id = create_postgres_storage()
         logger.info(f"Using PostgreSQL storage for search results with session_id: {session_id}")
     else:
@@ -139,7 +139,7 @@ def main():
         help="Set the logging level."
     )
     parser.add_argument(
-        "--use-postgres",
+        "--postgres",
         action="store_true",
         help="Use PostgreSQL for storing search results instead of in-memory."
     )
@@ -151,7 +151,7 @@ def main():
             model=args.model,
             temperature=args.temperature,
             log_level=args.log_level,
-            use_postgres=args.use_postgres
+            postgres=args.postgres
         ))
     except KeyboardInterrupt:
         print("\nProcess interrupted by user. Exiting.")
